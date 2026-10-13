@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#10141a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Volume Profile · Pin Zones</title>
 <style>
 :root{
@@ -14,114 +18,81 @@
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html,body{height:100%;margin:0}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
 body{
+  height:100vh;height:100dvh;
   background:var(--bg);color:var(--text);
   font:13px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   display:flex;flex-direction:column;
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
-.bar{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:flex-end;padding:8px;background:var(--panel)}
-.bar label{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)}
-.bar select,.bar input[type=text],.bar input[type=number],.bar input[type=file]{
-  font:inherit;font-size:13px;color:var(--text);background:var(--field);border:1px solid var(--border);border-radius:4px;padding:5px;max-width:100%}
-.bar select{min-width:92px}
-#inst{min-width:230px}
-.bar input[type=number]{width:84px}
-.bar input[type=text]{width:110px}
-.bar .row{display:flex;gap:6px}
-button{font:inherit;font-size:13px;color:#fff;background:var(--accent);border:0;border-radius:4px;padding:6px 14px;cursor:pointer}
-button.ghost{color:var(--text);background:rgba(26,32,41,.9);border:1px solid var(--border);padding:5px 10px}
-.live{margin-left:auto;display:flex;align-items:center;gap:8px;align-self:center;font-size:12px;color:var(--muted);white-space:nowrap}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--boundary)}
+button{font:inherit;font-size:13px;color:#fff;background:var(--accent);border:0;border-radius:6px;padding:8px 14px;cursor:pointer}
+button.ghost{color:var(--text);background:var(--field);border:1px solid var(--border);padding:5px 10px}
+
+/* ---- slim top bar: settings button + live status. This is all that stays on screen besides the chart. ---- */
+.top{display:flex;align-items:center;gap:8px;padding:3px 8px;min-height:34px;background:var(--panel);border-bottom:1px solid var(--border)}
+.gear{padding:4px 10px;font-size:13px;white-space:nowrap}
+.live{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);white-space:nowrap;min-width:0}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--boundary);flex:none}
 .dot.live{background:var(--up);box-shadow:0 0 6px var(--up)}
 .dot.poll{background:var(--warn)}
 .dot.offline{background:var(--down)}
-.px{font-size:17px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+.px{font-size:15px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
 .px.up,.chg.up{color:var(--up)}.px.down,.chg.down{color:var(--down)}
-details.more{flex-basis:100%}
-details.more summary{cursor:pointer;font-size:12px;color:var(--muted);user-select:none}
-.grid{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end;padding-top:8px}
-.grid .chk{flex-direction:row;align-items:center;gap:6px;font-size:12px;color:var(--text)}
-.info{padding:6px 10px;font-size:12px;border-bottom:1px solid var(--border);border-top:2px solid var(--accent);display:flex;flex-direction:column;gap:2px;min-height:36px;background:var(--panel)}
+
+/* ---- error / warning banner (only shown when something needs attention) ---- */
+.alert{display:flex;align-items:center;gap:8px;padding:3px 8px;background:#2b2308;color:var(--warn);border-bottom:1px solid #4a3a0c;font-size:12px}
+.alert span{flex:1;cursor:pointer;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.alert button{padding:0 8px;font-size:16px;line-height:24px}
+
+/* ---- chart fills everything left ---- */
+main{flex:1;min-height:0;position:relative}
+canvas{position:absolute;inset:0;touch-action:none;cursor:crosshair;display:block}
+.zoom{position:absolute;right:76px;bottom:28px;display:flex;gap:4px}
+.zoom button{width:30px;height:30px;padding:0;font-size:16px;line-height:1;opacity:.85}
+
+/* ---- settings sheet: overlays the chart, so opening it never resizes the chart ---- */
+.panel{position:absolute;left:0;right:0;top:0;z-index:5;max-height:82%;overflow:auto;-webkit-overflow-scrolling:touch;
+  background:var(--panel);border-bottom:2px solid var(--accent);box-shadow:0 10px 28px rgba(0,0,0,.55);padding:0 12px 14px}
+.phead{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:10px 0 8px;background:var(--panel)}
+.panel h3{margin:14px 0 8px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.fields .wide{grid-column:1/-1}
+.checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px 14px}
+.panel label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted);min-width:0}
+.panel label.chk{flex-direction:row;align-items:center;gap:9px;font-size:13px;color:var(--text)}
+.panel label.chk input{width:18px;height:18px;margin:0}
+.panel label.btnwrap{justify-content:flex-end}
+.panel select,.panel input[type=text],.panel input[type=number],.panel input[type=file]{
+  width:100%;font:inherit;font-size:14px;color:var(--text);background:var(--field);border:1px solid var(--border);border-radius:6px;padding:8px}
+.panel .row{display:flex;gap:6px}
+.panel .row select{width:auto;flex:none}
+.info{display:flex;flex-direction:column;gap:3px;font-size:12px;min-height:30px}
 .info .k{font-weight:600}.info .up{color:var(--up);font-weight:600}.info .down{color:var(--down);font-weight:600}
 .info .m{color:var(--muted)}.info .warn{color:var(--warn)}
 .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:baseline}
 #status{color:var(--muted)}
-main{flex:1;min-height:0;position:relative}
-canvas{position:absolute;inset:0;touch-action:none;cursor:crosshair;display:block}
-.zoom{position:absolute;right:76px;bottom:30px;display:flex;gap:4px}
-.zoom button{width:30px;height:30px;padding:0;font-size:16px;line-height:1}
-footer{padding:4px 10px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);background:var(--panel)}
+.note{margin:14px 0 0;font-size:11px;color:var(--muted)}
+
+@media (max-width:600px){
+  .panel select,.panel input[type=text],.panel input[type=number]{font-size:16px}  /* 16px stops iOS Safari zooming on focus */
+  .zoom{right:64px;bottom:26px}
+  .gear{padding:4px 8px}
+}
 </style>
 </head>
 <body>
 
-<header class="bar">
-  <label>Instrument
-    <select id="inst"></select>
-  </label>
-  <label id="custWrap" hidden>Custom symbol
-    <span class="row">
-      <select id="cVenue">
-        <option value="bfut">Binance Futures</option>
-        <option value="bspot">Binance Spot</option>
-        <option value="bybit">Bybit Perp</option>
-      </select>
-      <input id="cSym" type="text" value="ETHUSDT" spellcheck="false" autocapitalize="characters" autocomplete="off">
-    </span>
-  </label>
-  <label id="fileWrap" hidden>CSV file
-    <input id="file" type="file" accept=".csv,.txt,.tsv">
-  </label>
-  <label>Chart timeframe
-    <select id="tf">
-      <option value="1m">1m</option><option value="5m">5m</option>
-      <option value="15m" selected>15m</option><option value="30m">30m</option>
-      <option value="1h">1h</option><option value="4h">4h</option>
-    </select>
-  </label>
-  <label>Anchor candle
-    <select id="anchor">
-      <option value="1h">Previous hour</option><option value="4h">Previous 4H</option>
-      <option value="1d" selected>Previous day</option><option value="1w">Previous week</option>
-      <option value="1M">Previous month</option>
-    </select>
-  </label>
-  <label>Mode
-    <select id="mode">
-      <option value="pin">Pin zones (2 profiles)</option>
-      <option value="whole">Whole candle (1 profile)</option>
-    </select>
-  </label>
-  <button id="load" type="button">Reload</button>
-
+<header class="top">
+  <button id="gear" class="gear" type="button" aria-expanded="false" aria-controls="panel">⚙ Settings</button>
   <div class="live" id="live" title="Live connection status">
-    <span class="dot" id="dot"></span><span id="state">–</span>
-    <span class="px" id="px"></span><span class="chg" id="chg"></span>
+    <span class="dot" id="dot"></span><span id="state">–</span><span class="px" id="px"></span><span class="chg" id="chg"></span>
   </div>
-
-  <details class="more">
-    <summary>Settings</summary>
-    <div class="grid">
-      <label>Day boundary offset (hours vs UTC)<input id="offset" type="number" value="0" step="1" min="-12" max="14"></label>
-      <label>Rows per profile<input id="rows" type="number" value="30" min="5" max="200"></label>
-      <label>Value area %<input id="va" type="number" value="70" min="10" max="100"></label>
-      <label>Profile width (bars)<input id="width" type="number" value="25" min="5" max="200"></label>
-      <label>Pin wick/body ratio<input id="pinRatio" type="number" value="2" step="0.1" min="0.5"></label>
-      <label>Pin max body %<input id="pinBody" type="number" value="35" min="5" max="100"></label>
-      <label class="chk"><input id="auto" type="checkbox" checked>Auto-update (live)</label>
-      <label class="chk"><input id="showPOC" type="checkbox" checked>POC</label>
-      <label class="chk"><input id="showVA" type="checkbox" checked>VAH / VAL</label>
-      <label class="chk"><input id="showBounds" type="checkbox" checked>Candle High/Open/Close/Low</label>
-      <label class="chk"><input id="extend" type="checkbox" checked>Extend lines across chart</label>
-      <label class="chk"><input id="hiSrc" type="checkbox" checked>Shade anchor candle period</label>
-      <label class="chk"><input id="pins" type="checkbox" checked>Mark pin bars</label>
-    </div>
-  </details>
 </header>
 
-<section class="info" id="info" aria-live="polite"></section>
+<div class="alert" id="alert" hidden>
+  <span id="alertTxt"></span><button id="alertX" class="ghost" type="button" aria-label="Dismiss">×</button>
+</div>
 
 <main id="wrap">
   <canvas id="cv"></canvas>
@@ -130,9 +101,74 @@ footer{padding:4px 10px;font-size:11px;color:var(--muted);border-top:1px solid v
     <button class="ghost" id="zout" type="button" title="Zoom out">−</button>
     <button class="ghost" id="zreset" type="button" title="Reset view">⟲</button>
   </div>
-</main>
 
-<footer>Prices come from exchange perpetual/spot feeds (USDT-quoted), not your broker's feed, so levels can differ slightly from MT4/MT5. Times in UTC. Volume = exchange volume. Educational tool, not financial advice.</footer>
+  <section class="panel" id="panel" hidden aria-label="Settings">
+    <div class="phead"><b>Settings</b><button id="pclose" class="ghost" type="button">Close ✕</button></div>
+
+    <h3>Market</h3>
+    <div class="fields">
+      <label class="wide">Instrument<select id="inst"></select></label>
+      <label id="custWrap" class="wide" hidden>Custom symbol
+        <span class="row">
+          <select id="cVenue">
+            <option value="bfut">Binance Futures</option>
+            <option value="bspot">Binance Spot</option>
+            <option value="bybit">Bybit Perp</option>
+          </select>
+          <input id="cSym" type="text" value="ETHUSDT" spellcheck="false" autocapitalize="characters" autocomplete="off">
+        </span>
+      </label>
+      <label id="fileWrap" class="wide" hidden>CSV file<input id="file" type="file" accept=".csv,.txt,.tsv"></label>
+      <label>Chart timeframe
+        <select id="tf">
+          <option value="1m">1m</option><option value="5m">5m</option>
+          <option value="15m" selected>15m</option><option value="30m">30m</option>
+          <option value="1h">1h</option><option value="4h">4h</option>
+        </select>
+      </label>
+      <label class="btnwrap"><button id="load" type="button">Reload data</button></label>
+    </div>
+
+    <h3>Indicator</h3>
+    <div class="fields">
+      <label>Anchor candle
+        <select id="anchor">
+          <option value="1h">Previous hour</option><option value="4h">Previous 4H</option>
+          <option value="1d" selected>Previous day</option><option value="1w">Previous week</option>
+          <option value="1M">Previous month</option>
+        </select>
+      </label>
+      <label>Mode
+        <select id="mode">
+          <option value="pin">Pin zones (2 profiles)</option>
+          <option value="whole">Whole candle (1 profile)</option>
+        </select>
+      </label>
+      <label>Day boundary offset (hours vs UTC)<input id="offset" type="number" value="0" step="1" min="-12" max="14" inputmode="numeric"></label>
+      <label>Rows per profile<input id="rows" type="number" value="30" min="5" max="200" inputmode="numeric"></label>
+      <label>Value area %<input id="va" type="number" value="70" min="10" max="100" inputmode="numeric"></label>
+      <label>Profile width (bars)<input id="width" type="number" value="25" min="5" max="200" inputmode="numeric"></label>
+      <label>Pin wick/body ratio<input id="pinRatio" type="number" value="2" step="0.1" min="0.5" inputmode="decimal"></label>
+      <label>Pin max body %<input id="pinBody" type="number" value="35" min="5" max="100" inputmode="numeric"></label>
+    </div>
+
+    <h3>Display</h3>
+    <div class="checks">
+      <label class="chk"><input id="auto" type="checkbox" checked>Auto-update (live)</label>
+      <label class="chk"><input id="showPOC" type="checkbox" checked>POC</label>
+      <label class="chk"><input id="showVA" type="checkbox" checked>VAH / VAL</label>
+      <label class="chk"><input id="showBounds" type="checkbox" checked>Candle High/Open/Close/Low</label>
+      <label class="chk"><input id="extend" type="checkbox" checked>Extend lines across chart</label>
+      <label class="chk"><input id="hiSrc" type="checkbox" checked>Shade anchor candle period</label>
+      <label class="chk"><input id="pins" type="checkbox" checked>Mark pin bars</label>
+    </div>
+
+    <h3>Current levels</h3>
+    <section class="info" id="info" aria-live="polite"></section>
+
+    <p class="note">Prices come from exchange perpetual/spot feeds (USDT-quoted), not your broker's feed, so levels can differ slightly from MT4/MT5. Times in UTC. Volume = exchange volume. Educational tool, not financial advice. Tip: on a phone, use your browser's "Add to Home Screen" to open this full-screen.</p>
+  </section>
+</main>
 
 <script>
 // <core>
@@ -374,11 +410,13 @@ function mergeBar(bars,b){
 // ---------------------------------------------------------------------------
 // RENDER: draws candles + indicator on a 2D canvas. Pure function of its inputs.
 // ---------------------------------------------------------------------------
-const AXIS_W=68, AXIS_H=22, TOP_PAD=8;
+const AXIS_H=22, TOP_PAD=8;
+const axisW=W=>W<520?56:68;   // narrower price axis on phones to give the candles more room
 const FONT='11px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 const NICE_STEPS=[1,2,3,4,5,6,8,10,12,15,20,24,30,40,48,50,60,80,96,100,120,150,200,288,500,1000,2000];
 
 function drawChart(ctx,W,H,st,th){
+  const AXIS_W=axisW(W);
   const L=0,R=W-AXIS_W,T=TOP_PAD,B=H-AXIS_H,PW=R-L,PH=B-T;
   ctx.save();
   ctx.fillStyle=th.bg;ctx.fillRect(0,0,W,H);
@@ -410,7 +448,7 @@ function drawChart(ctx,W,H,st,th){
     const y=Math.round(yp(p))+0.5;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(R,y);ctx.stroke();gridLabels.push(p);
   }
   // vertical grid + time labels
-  const raw=Math.ceil(110/bw);let step=NICE_STEPS.find(s=>s>=raw)||raw;
+  const raw=Math.ceil((W<520?84:110)/bw);let step=NICE_STEPS.find(s=>s>=raw)||raw;
   const timeLabels=[];
   for(let i=Math.max(0,Math.floor(s0));i<=i1;i++){
     if(i%step!==0)continue;
@@ -435,6 +473,19 @@ function drawChart(ctx,W,H,st,th){
     const y1=yp(Math.max(b.o,b.c)),y2=yp(Math.min(b.o,b.c));
     ctx.fillRect(x-Math.floor(bodyW/2),y1,bodyW,Math.max(1,y2-y1));
   }
+
+  // hovered candle + legend geometry, decided up-front so the level labels can stay clear of the legend
+  const hv=st.hover;let hIdx=-1;
+  if(hv&&hv.x>=L&&hv.x<=R&&hv.y>=T&&hv.y<=B)hIdx=Math.floor(s0+(hv.x-L)/bw);
+  const LEG_FONT='bold 12px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+  ctx.font=LEG_FONT;const title=st.title||'',tw=ctx.measureText(title).width;ctx.font=FONT;
+  let tip='',tipWraps=false;
+  if(hIdx>=0&&hIdx<bars.length){
+    const b=bars[hIdx];
+    tip='O '+fmtP(b.o,d)+'  H '+fmtP(b.h,d)+'  L '+fmtP(b.l,d)+'  C '+fmtP(b.c,d)+'  V '+Math.round(b.v).toLocaleString('en-US');
+    tipWraps=!(8+tw+16+ctx.measureText(tip).width<R);      // too wide for one line (phones): use a second line
+  }
+  const legendBottom=T+(tipWraps?32:16);
 
   // ---- indicator ----
   const axisTags=[];
@@ -486,7 +537,7 @@ function drawChart(ctx,W,H,st,th){
     }
     // labels: stacked so they never overlap each other (nudged downward when levels are close together)
     lv.sort((a,b)=>a.y-b.y);
-    let prevY=T+14;   // keep level labels clear of the legend strip at the top
+    let prevY=legendBottom-2;   // keep level labels clear of the legend strip at the top
     for(const q of lv){
       let ly=q.y-7;if(ly<prevY+12)ly=prevY+12;prevY=ly;
       const al=o.extend?'left':'right',lx=o.extend?L+6:xL-bw*0.5-4,tw=ctx.measureText(q.txt).width;
@@ -512,12 +563,10 @@ function drawChart(ctx,W,H,st,th){
   ctx.beginPath();ctx.moveTo(L,ly);ctx.lineTo(R,ly);ctx.stroke();ctx.setLineDash([]);
 
   // crosshair
-  const hv=st.hover;let hIdx=-1;
-  if(hv&&hv.x>=L&&hv.x<=R&&hv.y>=T&&hv.y<=B){
+  if(hIdx>=0){
     ctx.strokeStyle=th.cross;ctx.lineWidth=1;ctx.setLineDash([4,4]);
     ctx.beginPath();ctx.moveTo(L,Math.round(hv.y)+0.5);ctx.lineTo(R,Math.round(hv.y)+0.5);
     ctx.moveTo(Math.round(hv.x)+0.5,T);ctx.lineTo(Math.round(hv.x)+0.5,B);ctx.stroke();ctx.setLineDash([]);
-    hIdx=Math.floor(s0+(hv.x-L)/bw);
   }
   ctx.restore(); // end clip
 
@@ -541,18 +590,10 @@ function drawChart(ctx,W,H,st,th){
     }
   }
 
-  // ---- legend / tooltip (one line: title, then the hovered candle's OHLCV) ----
-  ctx.textAlign='left';ctx.font='bold 12px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
-  const title=st.title||'',tw=ctx.measureText(title).width;
-  ctx.fillStyle=th.text;ctx.fillText(title,8,T+10);
+  // ---- legend / tooltip (title, then the hovered candle's OHLCV on the same line when it fits) ----
+  ctx.textAlign='left';ctx.font=LEG_FONT;ctx.fillStyle=th.text;ctx.fillText(title,8,T+10);
   ctx.font=FONT;
-  if(hIdx>=0&&hIdx<bars.length){
-    const b=bars[hIdx];
-    const tip='O '+fmtP(b.o,d)+'  H '+fmtP(b.h,d)+'  L '+fmtP(b.l,d)+'  C '+fmtP(b.c,d)+'  V '+Math.round(b.v).toLocaleString('en-US');
-    const fits=8+tw+16+ctx.measureText(tip).width<R;
-    ctx.fillStyle=th.muted;
-    if(fits)ctx.fillText(tip,8+tw+16,T+10);else ctx.fillText(tip,8,T+26);
-  }
+  if(tip){ctx.fillStyle=th.muted;if(tipWraps)ctx.fillText(tip,8,T+26);else ctx.fillText(tip,8+tw+16,T+10);}
   ctx.restore();
   return layout;
 }
@@ -566,7 +607,7 @@ if(typeof document!=='undefined'){
 const $=id=>document.getElementById(id);
 const cv=$('cv'),wrap=$('wrap'),ctx=cv.getContext('2d');
 const S={bars:[],tfMs:15*MIN,title:'',name:'',view:{start:0,barW:8},anchor:null,prof:null,pins:null,hover:null,
-  layout:null,dec:5,opts:null,anchorLabel:'',loadId:0,status:'',lastPx:null};
+  layout:null,dec:5,opts:null,anchorLabel:'',loadId:0,status:'',err:'',anchorWarn:'',dismissed:'',lastPx:null};
 let W=800,H=500,raf=0,drag=null,theme=null;
 
 // ---- instrument dropdown ----
@@ -622,14 +663,14 @@ function resize(){
   ctx.setTransform(dpr,0,0,dpr,0,0);schedule();
 }
 function resetView(){
-  const PW=W-AXIS_W,o=S.opts||opts();
-  S.view.barW=clamp(PW/140,3,14);
+  const PW=W-axisW(W),o=S.opts||opts();
+  S.view.barW=W<520?4:clamp(PW/140,3,14);
   S.view.start=S.bars.length-PW/S.view.barW+o.widthBars+6;
   schedule();
 }
-function clampStart(s){const pwBars=(W-AXIS_W)/S.view.barW;return clamp(s,-pwBars*0.5,S.bars.length+20);}
+function clampStart(s){const pwBars=(W-axisW(W))/S.view.barW;return clamp(s,-pwBars*0.5,S.bars.length+20);}
 function zoomAt(f,cx){const bw=S.view.barW,nb=clamp(bw*f,1.2,60),idx=S.view.start+cx/bw;S.view.barW=nb;S.view.start=clampStart(idx-cx/nb);schedule();}
-function lastBarVisible(){const n=S.bars.length-1,pw=(W-AXIS_W)/S.view.barW;return n>=S.view.start-1&&n<=S.view.start+pw+1;}
+function lastBarVisible(){const n=S.bars.length-1,pw=(W-axisW(W))/S.view.barW;return n>=S.view.start-1&&n<=S.view.start+pw+1;}
 
 // ---- indicator rebuild ----
 function rebuild(){
@@ -643,7 +684,14 @@ function rebuild(){
     }
     S.dec=decimalsFor(S.bars[S.bars.length-1].c);
   }
-  updateInfo();updateTicker();schedule();
+  S.anchorWarn='';
+  if(S.bars.length){
+    const A=S.anchor;
+    if(!A)S.anchorWarn='No completed '+S.anchorLabel.replace('Prev ','previous ').toLowerCase()+' candle found in the loaded data.';
+    else if(A.partial)S.anchorWarn='Loaded data starts after the anchor candle began, so the profile is partial.';
+    else if(A.count<3)S.anchorWarn='Only '+A.count+' chart bar(s) inside the anchor candle. Use a smaller chart timeframe than the anchor.';
+  }
+  updateInfo();updateTicker();refreshAlert();schedule();
 }
 function updateInfo(){
   const el=$('info');el.textContent='';
@@ -651,7 +699,7 @@ function updateInfo(){
   const st=document.createElement('div');st.id='status';st.textContent=S.status||'';
   if(!S.bars.length){el.appendChild(st);return;}
   const A=S.anchor,P=S.prof,d=S.dec,f=v=>fmtP(v,d),o=S.opts;
-  if(!A){row('<span class="warn">No completed '+S.anchorLabel.replace('Prev ','previous ')+' candle found in the loaded data.</span>');el.appendChild(st);return;}
+  if(!A){row('<span class="warn">No completed '+S.anchorLabel.replace('Prev ','previous ').toLowerCase()+' candle found in the loaded data.</span>');el.appendChild(st);return;}
   row('<span class="k">'+S.anchorLabel+'</span> <span class="'+(A.bull?'up':'down')+'">'+(A.bull?'Bull':'Bear')+'</span> '
     +'O '+f(A.o)+' &nbsp;H '+f(A.h)+' &nbsp;L '+f(A.l)+' &nbsp;C '+f(A.c)
     +' <span class="m">· '+A.count+' bars · from '+fmtFull(A.start)+' UTC</span>');
@@ -670,7 +718,14 @@ function updateInfo(){
   if(A.count<3)row('<span class="warn">⚠ Only '+A.count+' chart bar(s) inside the anchor candle. Use a smaller chart timeframe than the anchor for a meaningful histogram.</span>');
   el.appendChild(st);
 }
-function setStatus(msg){S.status=msg;const s=$('status');if(s)s.textContent=msg;else updateInfo();}
+function showStatus(msg){const s=$('status');if(s)s.textContent=msg;else updateInfo();}
+function setStatus(msg){S.status=msg;S.err='';showStatus(msg);refreshAlert();}   // informational: only shown inside Settings
+function setErr(msg){S.status=msg;S.err=msg;showStatus(msg);refreshAlert();}      // problems: also surfaced in the banner
+// The banner is the only thing besides the chart/status bar that appears on screen, and only when something needs attention.
+function refreshAlert(){
+  const msg=S.err||S.anchorWarn||'',show=!!msg&&msg!==S.dismissed;
+  $('alert').hidden=!show;$('alertTxt').textContent=show?msg:'';
+}
 
 // ---- live price strip ----
 function setLive(state){
@@ -688,7 +743,7 @@ function updateTicker(){
   const A=S.anchor;
   if(A&&A.c){
     const pct=(last.c-A.c)/A.c*100;
-    chEl.textContent=(pct>=0?'+':'')+pct.toFixed(2)+'% vs '+S.anchorLabel.toLowerCase()+' close';
+    chEl.textContent=(pct>=0?'+':'')+pct.toFixed(2)+'%';chEl.title='vs '+S.anchorLabel.toLowerCase()+' close';
     chEl.className='chg '+(pct>=0?'up':'down');
   }else chEl.textContent='';
   document.title=fmtP(last.c,S.dec)+' · '+(S.name||'Volume Profile');
@@ -784,10 +839,10 @@ async function load(keepView){
       const need=neededStart(tfMs,o);
       S.bars=genDemo(tfMs,Date.now()-need.start+tfMs*20,Date.now(),7);S.tfMs=tfMs;S.title='DEMO · '+tfKey+' · synthetic data';S.name='Demo';S.lastPx=null;
       rebuild();resetView();
-      setStatus('Could not load '+inst.name+' ('+e.message+'). Showing demo data instead.');
+      setErr('Could not load '+inst.name+' ('+e.message+'). Showing demo data instead.');
     }else{
       S.bars=[];S.title='';rebuild();
-      setStatus('Could not load '+inst.name+': '+e.message);
+      setErr('Could not load '+inst.name+': '+e.message);
     }
     setLive('offline');
   }
@@ -874,7 +929,7 @@ $('file').addEventListener('change',async e=>{
     stopFeed();S.loadId++;S.bars=bars;S.tfMs=tfMs;S.title=f.name+' · '+Math.round(tfMs/MIN)+'m bars';S.name=f.name;S.lastPx=null;
     setStatus(bars.length.toLocaleString('en-US')+' bars loaded ('+fmtFull(bars[0].t)+' → '+fmtFull(bars[bars.length-1].t)+'). Timestamps are used as exported (treated as UTC), so offset 0 puts the day boundary at your broker\'s midnight.');
     rebuild();resetView();
-  }catch(err){setStatus('Could not read the file: '+err.message);}
+  }catch(err){setErr('Could not read the file: '+err.message);}
 });
 
 // ---- controls wiring ----
@@ -896,20 +951,50 @@ $('auto').addEventListener('change',()=>{
   else{stopFeed();if(inst&&inst.venue)setLive('paused');}
 });
 
-// ---- chart interaction ----
-cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);drag={x:e.clientX,start:S.view.start};});
+// ---- settings sheet + banner ----
+const panel=$('panel'),gear=$('gear');
+function setPanel(open){panel.hidden=!open;gear.setAttribute('aria-expanded',String(open));}
+gear.addEventListener('click',()=>setPanel(panel.hidden));
+$('pclose').addEventListener('click',()=>setPanel(false));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')setPanel(false);});
+$('alertTxt').addEventListener('click',()=>setPanel(true));
+$('alertX').addEventListener('click',()=>{S.dismissed=S.err||S.anchorWarn||'';refreshAlert();});
+
+// ---- chart interaction: one finger / mouse pans, two fingers pinch-zoom ----
+const ptrs=new Map();let pinch=null;
+cv.addEventListener('pointerdown',e=>{
+  setPanel(false);                                   // touching the chart closes the settings sheet
+  try{if(cv.setPointerCapture)cv.setPointerCapture(e.pointerId);}catch(_){}
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===1)drag={x:e.clientX,start:S.view.start};
+  else if(ptrs.size===2){
+    drag=null;const[a,b]=[...ptrs.values()],r=cv.getBoundingClientRect();
+    pinch={d:Math.hypot(a.x-b.x,a.y-b.y)||1,barW:S.view.barW,start:S.view.start,cx:(a.x+b.x)/2-r.left};
+  }
+});
 cv.addEventListener('pointermove',e=>{
-  const r=cv.getBoundingClientRect();S.hover={x:e.clientX-r.left,y:e.clientY-r.top};
+  const r=cv.getBoundingClientRect();
+  if(ptrs.has(e.pointerId))ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pinch&&ptrs.size===2){
+    const[a,b]=[...ptrs.values()],d=Math.hypot(a.x-b.x,a.y-b.y)||1;
+    const nb=clamp(pinch.barW*d/pinch.d,1.2,60),idx=pinch.start+pinch.cx/pinch.barW;
+    S.view.barW=nb;S.view.start=clampStart(idx-pinch.cx/nb);S.hover=null;schedule();return;
+  }
+  S.hover={x:e.clientX-r.left,y:e.clientY-r.top};
   if(drag)S.view.start=clampStart(drag.start-(e.clientX-drag.x)/S.view.barW);
   schedule();
 });
-const endDrag=e=>{drag=null;if(e.pointerType==='touch'){S.hover=null;schedule();}};
-cv.addEventListener('pointerup',endDrag);cv.addEventListener('pointercancel',endDrag);
-cv.addEventListener('pointerleave',()=>{if(!drag){S.hover=null;schedule();}});
+const endPtr=e=>{
+  ptrs.delete(e.pointerId);pinch=null;
+  if(ptrs.size===1){const p=[...ptrs.values()][0];drag={x:p.x,start:S.view.start};}else drag=null;
+  if(e.pointerType==='touch'){S.hover=null;schedule();}
+};
+cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endPtr);
+cv.addEventListener('pointerleave',e=>{if(!drag&&e.pointerType!=='touch'){S.hover=null;schedule();}});
 cv.addEventListener('wheel',e=>{e.preventDefault();const r=cv.getBoundingClientRect();zoomAt(Math.exp(-e.deltaY*0.0015),e.clientX-r.left);},{passive:false});
 cv.addEventListener('dblclick',resetView);
-$('zin').addEventListener('click',()=>zoomAt(1.25,(W-AXIS_W)/2));
-$('zout').addEventListener('click',()=>zoomAt(0.8,(W-AXIS_W)/2));
+$('zin').addEventListener('click',()=>zoomAt(1.25,(W-axisW(W))/2));
+$('zout').addEventListener('click',()=>zoomAt(0.8,(W-axisW(W))/2));
 $('zreset').addEventListener('click',resetView);
 
 if(window.ResizeObserver)new ResizeObserver(resize).observe(wrap);else window.addEventListener('resize',resize);
