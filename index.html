@@ -114,6 +114,7 @@ canvas{position:absolute;inset:0;touch-action:none;cursor:crosshair;display:bloc
             <option value="bfut">Binance Futures</option>
             <option value="bspot">Binance Spot</option>
             <option value="bybit">Bybit Perp</option>
+            <option value="biquote">Biquote (broker feed)</option>
           </select>
           <input id="cSym" type="text" value="ETHUSDT" spellcheck="false" autocapitalize="characters" autocomplete="off">
         </span>
@@ -166,7 +167,7 @@ canvas{position:absolute;inset:0;touch-action:none;cursor:crosshair;display:bloc
     <h3>Current levels</h3>
     <section class="info" id="info" aria-live="polite"></section>
 
-    <p class="note">Prices come from exchange perpetual/spot feeds (USDT-quoted), not your broker's feed, so levels can differ slightly from MT4/MT5. Times in UTC. Volume = exchange volume. Educational tool, not financial advice. Tip: on a phone, use your browser's "Add to Home Screen" to open this full-screen.</p>
+    <p class="note">Binance/Bybit prices come from exchange perpetual/spot feeds (USDT-quoted), so levels can differ slightly from MT4/MT5. Biquote instruments use an MT5 broker feed (closer to MT4/MT5), but their volume is tick volume (ticks per bar), the same as MT5 shows for forex/CFDs, and history is limited to roughly 2,000 bars per timeframe. Times in UTC. Educational tool, not financial advice. Tip: on a phone, use your browser's "Add to Home Screen" to open this full-screen.</p>
   </section>
 </main>
 
@@ -362,7 +363,9 @@ const VENUES={
         ws:(s,iv)=>['wss://stream.binance.com:9443/ws/'+s.toLowerCase()+'@kline_'+iv,
                     'wss://data-stream.binance.vision/ws/'+s.toLowerCase()+'@kline_'+iv]},
   bybit:{name:'Bybit Perp',rest:['https://api.bybit.com'],
-        ws:()=>['wss://stream.bybit.com/v5/public/linear']}
+        ws:()=>['wss://stream.bybit.com/v5/public/linear']},
+  // Biquote: free MT5 broker feed, no key, CORS open. REST only (live updates by polling the open bar).
+  biquote:{name:'Biquote (MT5 feed)',rest:['https://biquote.io'],noWS:true}
 };
 // Order matters: the first five are the favourites, in the order requested.
 const INSTRUMENTS=[
@@ -377,10 +380,19 @@ const INSTRUMENTS=[
   {id:'xrp',name:'XRP',label:'XRP · XRPUSDT (Binance spot)',venue:'bspot',sym:'XRPUSDT'},
   {id:'bnb',name:'BNB',label:'BNB · BNBUSDT (Binance spot)',venue:'bspot',sym:'BNBUSDT'},
   {id:'doge',name:'Dogecoin',label:'Dogecoin · DOGEUSDT (Binance spot)',venue:'bspot',sym:'DOGEUSDT'},
-  {id:'paxg',name:'Gold token',label:'Gold token · PAXGUSDT (Binance spot)',venue:'bspot',sym:'PAXGUSDT'}
+  {id:'paxg',name:'Gold token',label:'Gold token · PAXGUSDT (Binance spot)',venue:'bspot',sym:'PAXGUSDT'},
+  // Biquote (MT5 broker feed): tick volume, ~2,000 bars of history per timeframe
+  {id:'bq_xau',grp:'bq',name:'Gold',label:'Gold · XAUUSD (Biquote)',venue:'biquote',sym:'XAUUSD'},
+  {id:'bq_xag',grp:'bq',name:'Silver',label:'Silver · XAGUSD (Biquote)',venue:'biquote',sym:'XAGUSD'},
+  {id:'bq_eur',grp:'bq',name:'EUR/USD',label:'EUR/USD (Biquote)',venue:'biquote',sym:'EURUSD'},
+  {id:'bq_gbp',grp:'bq',name:'GBP/USD',label:'GBP/USD (Biquote)',venue:'biquote',sym:'GBPUSD'},
+  {id:'bq_jpy',grp:'bq',name:'USD/JPY',label:'USD/JPY (Biquote)',venue:'biquote',sym:'USDJPY'},
+  {id:'bq_btc',grp:'bq',name:'Bitcoin',label:'Bitcoin · BTCUSD (Biquote)',venue:'biquote',sym:'BTCUSD'}
 ];
 const bybitTopic=(sym,tf)=>'kline.'+BYBIT_IV[tf]+'.'+sym;
 const binanceRowToBar=k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]});
+// Biquote bar: {openTime, open, high, low, close, volume, tickVolume, isOpen}. volume is 0 for FX/CFD, so fall back to tickVolume.
+const biquoteRowToBar=k=>({t:Date.parse(k.openTime),o:+k.open,h:+k.high,l:+k.low,c:+k.close,v:(+k.volume>0?+k.volume:+k.tickVolume)||0});
 const bybitRowToBar=k=>({t:+k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]});
 // Binance kline event (raw, or wrapped in a combined-stream envelope)
 function parseBinanceWS(m){
@@ -618,7 +630,8 @@ function addGroup(label,items){
   sel.appendChild(g);
 }
 addGroup('Favorites',INSTRUMENTS.filter(i=>i.fav));
-addGroup('More markets',INSTRUMENTS.filter(i=>!i.fav));
+addGroup('Biquote · broker feed',INSTRUMENTS.filter(i=>i.grp==='bq'));
+addGroup('More markets',INSTRUMENTS.filter(i=>!i.fav&&i.grp!=='bq'));
 addGroup('Other',[{id:'custom',label:'Custom symbol…'},{id:'csv',label:'CSV file (MT4/MT5 export)…'},{id:'demo',label:'Demo data (synthetic)'}]);
 sel.value='xau';
 
@@ -761,7 +774,22 @@ async function fetchHistory(inst,tfKey,startMs){
   for(const base of V.rest){
     try{
       let out=[];
-      if(inst.venue==='bybit'){
+      if(inst.venue==='biquote'){
+        // Newest-first pages of up to 1000 bars; walk backwards with `to` until we pass startMs or run out of history.
+        let to=null,prevOldest=Infinity;
+        for(let p=0;p<20;p++){
+          const j=await getJSON(base+'/api/'+encodeURIComponent(inst.sym)+'/ohlc?interval='+tfKey+'&limit=1000'
+            +(to!==null?'&to='+encodeURIComponent(new Date(to).toISOString()):''));
+          const list=(j&&j.bars)||[];
+          if(!list.length)break;
+          let oldest=Infinity;
+          for(const k of list){const b=biquoteRowToBar(k);if(Number.isFinite(b.t)){out.push(b);if(b.t<oldest)oldest=b.t;}}
+          if(!Number.isFinite(oldest)||oldest>=prevOldest)break;   // no progress
+          prevOldest=oldest;
+          if(oldest<=startMs||list.length<1000)break;
+          to=oldest-1;
+        }
+      }else if(inst.venue==='bybit'){
         let end=Date.now()+60000;
         for(let p=0;p<25;p++){
           const j=await getJSON(base+'/v5/market/kline?category=linear&symbol='+encodeURIComponent(inst.sym)
@@ -795,6 +823,10 @@ async function fetchLatest(inst,tfKey){
   const V=VENUES[inst.venue];let lastErr;
   for(const base of V.rest){
     try{
+      if(inst.venue==='biquote'){
+        const j=await getJSON(base+'/api/'+encodeURIComponent(inst.sym)+'/ohlc?interval='+tfKey+'&limit=3');
+        return dedupeSorted(((j&&j.bars)||[]).map(biquoteRowToBar).filter(b=>Number.isFinite(b.t)));
+      }
       if(inst.venue==='bybit'){
         const j=await getJSON(base+'/v5/market/kline?category=linear&symbol='+encodeURIComponent(inst.sym)+'&interval='+BYBIT_IV[tfKey]+'&limit=3');
         if(j.retCode!==0)throw new Error(j.retMsg||'Bybit error');
@@ -862,7 +894,7 @@ function startFeed(inst,tfKey){
   Feed.inst=inst;Feed.tf=tfKey;Feed.retry=0;Feed.urlIdx=0;Feed.lastMsg=0;
   const id=Feed.id;
   setLive('poll');
-  connectWS(id);
+  if(!VENUES[inst.venue].noWS)connectWS(id);
   Feed.pollT=setInterval(()=>pollOnce(id),3000);
 }
 function connectWS(id){
