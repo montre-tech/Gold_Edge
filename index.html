@@ -9,8 +9,6 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Volume Profile · Pin Zones</title>
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2310141a'/%3E%3Crect x='12' y='22' width='40' height='5' fill='%233b82f6'/%3E%3Crect x='12' y='30' width='30' height='5' fill='%2338bdf8'/%3E%3Crect x='12' y='38' width='20' height='5' fill='%23DAA520'/%3E%3C/svg%3E">
 <style>
 :root{
   color-scheme:dark;
@@ -164,12 +162,38 @@ canvas{position:absolute;inset:0;touch-action:none;cursor:crosshair;display:bloc
       <label class="chk"><input id="extend" type="checkbox" checked>Extend lines across chart</label>
       <label class="chk"><input id="hiSrc" type="checkbox" checked>Shade anchor candle period</label>
       <label class="chk"><input id="pins" type="checkbox" checked>Mark pin bars</label>
+      <label class="chk"><input id="showRatio" type="checkbox" checked>Gold/Silver ratio (sub-window)</label>
+    </div>
+
+    <h3>Gold / Silver ratio (sub-window)</h3>
+    <div class="fields">
+      <label>Line colouring
+        <select id="rMode">
+          <option value="levels">Fixed tiers (Level 1–4)</option>
+          <option value="pct">Adaptive percentiles</option>
+        </select>
+      </label>
+      <label>Tier level 1 (below = lime)<input id="rL1" type="number" value="68" step="0.5" inputmode="decimal"></label>
+      <label>Tier level 2<input id="rL2" type="number" value="70" step="0.5" inputmode="decimal"></label>
+      <label>Tier level 3 (above = orange)<input id="rL3" type="number" value="80" step="0.5" inputmode="decimal"></label>
+      <label>Tier level 4 (above = red)<input id="rL4" type="number" value="90" step="0.5" inputmode="decimal"></label>
+      <label>Low percentile<input id="rLowPct" type="number" value="10" step="1" min="0" max="100" inputmode="decimal"></label>
+      <label>High percentile<input id="rHighPct" type="number" value="90" step="1" min="0" max="100" inputmode="decimal"></label>
+      <label>Draw percentile lines this many bars back (0 = all)<input id="rDrawBars" type="number" value="50" step="1" min="0" inputmode="numeric"></label>
+      <label>MA period (bars)<input id="rMAPeriod" type="number" value="100" step="1" min="2" inputmode="numeric"></label>
+      <label>Custom history window (days, when auto is off)<input id="rLbDays" type="number" value="365" step="1" min="1" inputmode="numeric"></label>
+    </div>
+    <div class="checks" style="margin-top:10px">
+      <label class="chk"><input id="rShowPct" type="checkbox" checked>Show adaptive percentile lines</label>
+      <label class="chk"><input id="rShowMA" type="checkbox" checked>Show moving average</label>
+      <label class="chk"><input id="rAutoLb" type="checkbox" checked>Auto history window for this timeframe</label>
+      <label class="chk"><input id="rAlerts" type="checkbox">Alert when a closed bar changes colour zone</label>
     </div>
 
     <h3>Current levels</h3>
     <section class="info" id="info" aria-live="polite"></section>
 
-    <p class="note">Binance/Bybit prices come from exchange perpetual/spot feeds (USDT-quoted), so levels can differ slightly from MT4/MT5. Biquote instruments use an MT5 broker feed (closer to MT4/MT5), but their volume is tick volume (ticks per bar), the same as MT5 shows for forex/CFDs, and history is limited to roughly 2,000 bars per timeframe. Times in UTC. Educational tool, not financial advice. Tip: on a phone, use your browser's "Add to Home Screen" to open this full-screen.</p>
+    <p class="note">Binance/Bybit prices come from exchange perpetual/spot feeds (USDT-quoted), so levels can differ slightly from MT4/MT5. Biquote instruments use an MT5 broker feed (closer to MT4/MT5), but their volume is tick volume (ticks per bar), the same as MT5 shows for forex/CFDs, and history is limited to roughly 2,000 bars per timeframe. The Gold/Silver ratio always uses Biquote XAUUSD and XAGUSD on the chart's timeframe (whatever instrument is on the chart), so its percentile window is limited by Biquote's history (about 2,000 bars). Times in UTC. Educational tool, not financial advice. Tip: on a phone, use your browser's "Add to Home Screen" to open this full-screen.</p>
   </section>
 </main>
 
@@ -351,6 +375,84 @@ function fmtDate(t){const d=new Date(t);return MON[d.getUTCMonth()]+' '+d.getUTC
 function fmtHM(t){const d=new Date(t);return pad2(d.getUTCHours())+':'+pad2(d.getUTCMinutes());}
 function fmtFull(t){const d=new Date(t);return d.getUTCFullYear()+'-'+pad2(d.getUTCMonth()+1)+'-'+pad2(d.getUTCDate())+' '+fmtHM(t);}
 function niceStep(raw){const p=Math.pow(10,Math.floor(Math.log10(raw))),m=raw/p;return(m<=1?1:m<=2?2:m<=5?5:10)*p;}
+
+// ---- Gold/Silver ratio (port of GoldSilverRatio.mq5) ----
+// Colour index: 0 normal (blue), 1 orange, 2 red, 3 lime, 4 aqua
+const RATIO_COL=['#1e90ff','#ffa500','#ff3b30','#32d74b','#00e5ff'];
+const RATIO_NAME={0:'normal',1:'elevated',2:'extreme',3:'low',4:'low-mid'};
+// Ratio on the gold bars' time grid; silver's last known close is carried forward across gaps.
+function buildRatio(g,s){
+  const t=[],v=[];let ps=-1;
+  for(const b of g){
+    while(ps+1<s.length&&s[ps+1].t<=b.t)ps++;
+    if(ps<0||!(s[ps].c>0)||!(b.c>0))continue;
+    t.push(b.t);v.push(b.c/s[ps].c);
+  }
+  return{t,v};
+}
+// History window in calendar days (auto: depends on timeframe, as in the MT5 indicator)
+function ratioLookbackDays(tfMs,o){
+  if(!o.autoLb)return o.lbDays;
+  return tfMs<=MIN?3:tfMs<=5*MIN?14:tfMs<=15*MIN?30:tfMs<=30*MIN?60:tfMs<=HOUR?120:tfMs<=4*HOUR?365:tfMs<=DAY?1095:3650;
+}
+function ratioLookbackBars(tfMs,total,o){
+  let bars=ratioLookbackDays(tfMs,o)*DAY/tfMs;
+  if(tfMs<WEEK)bars*=5/7;                        // markets are closed on weekends
+  let n=Math.floor(bars);
+  n=Math.max(30,Math.min(20000,n));
+  return Math.min(n,total);
+}
+function percentileOf(a,pct){                    // `a` sorted ascending; linear interpolation (same as MT5 code)
+  const pos=(a.length-1)*pct/100,lo=Math.floor(pos),hi=Math.ceil(pos);
+  return a[lo]+(a[hi]-a[lo])*(pos-lo);
+}
+function ratioZone(r,o,inWin,pHigh,pLow){
+  if(o.mode==='levels'){
+    if(r>=o.l4)return 2;
+    if(r>=o.l3)return 1;
+    if(r<o.l1)return 3;
+    if(r<o.l2)return 4;
+    return 0;
+  }
+  if(!inWin)return 0;                            // older bars: no percentile colouring
+  if(pHigh!=null&&r>=pHigh)return 2;
+  if(pLow!=null&&r<=pLow)return 3;
+  return 0;
+}
+// MA, adaptive percentiles (recalculated only when a new bar appears, via `cache`) and colour index per bar.
+function calcRatio(R,o,tfMs,cache){
+  const v=R.v,n=v.length,ma=new Array(n).fill(NaN),col=new Array(n).fill(0);
+  if(o.showMA&&o.maPeriod>=2){
+    let sum=0;
+    for(let i=0;i<n;i++){sum+=v[i];if(i>=o.maPeriod)sum-=v[i-o.maPeriod];if(i>=o.maPeriod-1)ma[i]=sum/o.maPeriod;}
+  }
+  const needPct=o.showPct||o.mode==='pct';
+  let pLow=null,pHigh=null,key=null;
+  if(needPct&&n){
+    key=[n,o.lowPct,o.highPct,o.autoLb,o.lbDays,tfMs].join('|');
+    if(cache&&cache.key===key){pLow=cache.pLow;pHigh=cache.pHigh;}
+    else{
+      const lb=ratioLookbackBars(tfMs,n,o),a=v.slice(n-lb).sort((x,y)=>x-y);
+      if(a.length>=20){pLow=percentileOf(a,o.lowPct);pHigh=percentileOf(a,o.highPct);}
+    }
+  }
+  const winStart=o.drawBars>0?Math.max(0,n-o.drawBars):0;
+  for(let i=0;i<n;i++)col[i]=ratioZone(v[i],o,i>=winStart,pHigh,pLow);
+  return{ma,col,pLow,pHigh,winStart,key,n,needPct};
+}
+function ratioStateText(s,r,o,c){
+  const v=r.toFixed(2);
+  if(o.mode==='levels'){
+    if(s===2)return'Gold/Silver ratio '+v+' is above '+o.l4.toFixed(1);
+    if(s===1)return'Gold/Silver ratio '+v+' is above '+o.l3.toFixed(1);
+    if(s===3)return'Gold/Silver ratio '+v+' is below '+o.l1.toFixed(1);
+    if(s===4)return'Gold/Silver ratio '+v+' is between '+o.l1.toFixed(1)+' and '+o.l2.toFixed(1);
+  }else{
+    if(s===2&&c.pHigh!=null)return'Gold/Silver ratio '+v+' is above its P'+o.highPct.toFixed(0)+' ('+c.pHigh.toFixed(2)+')';
+    if(s===3&&c.pLow!=null)return'Gold/Silver ratio '+v+' is below its P'+o.lowPct.toFixed(0)+' ('+c.pLow.toFixed(2)+')';
+  }
+  return'';
+}
 // </core>
 
 // <feed>
@@ -611,6 +713,146 @@ function drawChart(ctx,W,H,st,th){
   ctx.restore();
   return layout;
 }
+
+// ---- Gold/Silver ratio sub-window: shares the chart's x axis (pan/zoom/crosshair), own y axis ----
+function drawRatioPane(ctx,W,y0,h,st,th,lay){
+  const L=lay.L,R=lay.R,AXIS_W=W-R,T=y0+4,B=y0+h-4,PW=R-L,PH=B-T;
+  ctx.save();
+  ctx.fillStyle=th.bg;ctx.fillRect(0,y0,W,h);
+  ctx.strokeStyle=th.border||th.grid;ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(0,y0+0.5);ctx.lineTo(W,y0+0.5);ctx.stroke();
+  ctx.font=FONT;ctx.textBaseline='middle';
+  const RS=st.ratio,bars=st.bars;
+  const note=txt=>{ctx.fillStyle=th.muted;ctx.textAlign='center';ctx.fillText(txt,(L+R)/2,(T+B)/2);ctx.restore();};
+  if(!RS||!RS.R||!RS.calc||!bars.length)return note((RS&&RS.msg)||'Gold/Silver ratio');
+  const RR=RS.R,C=RS.calc,o=RS.o,bw=st.view.barW,s0=st.view.start,nR=RR.t.length;
+  const xi=i=>L+(i-s0)*bw+bw/2;
+  const i0=Math.max(0,Math.floor(s0)-1),i1=Math.min(bars.length-1,Math.ceil(s0+PW/bw)+1);
+
+  // chart bar -> ratio value (last known ratio is carried forward, like the MT5 indicator)
+  const pts=[];
+  let lo_=0,hi_=nR;const t0=bars[i0].t;
+  while(lo_<hi_){const m=(lo_+hi_)>>1;if(RR.t[m]<=t0)lo_=m+1;else hi_=m;}
+  let j=lo_-1;
+  for(let i=i0;i<=i1;i++){
+    const t=bars[i].t;
+    while(j+1<nR&&RR.t[j+1]<=t)j++;
+    if(j<0)continue;
+    if(j===nR-1&&t-RR.t[j]>st.tfMs*3)continue;     // beyond the end of the ratio data: don't draw a flat line
+    pts.push({i,x:xi(i),v:RR.v[j],c:C.col[j],m:C.ma[j]});
+  }
+  if(!pts.length)return note('No ratio data in view');
+
+  // y range: visible ratio + MA + percentile lines
+  let lo=Infinity,hi=-Infinity;
+  const ext=v=>{if(Number.isFinite(v)){if(v<lo)lo=v;if(v>hi)hi=v;}};
+  for(const q of pts){ext(q.v);if(o.showMA)ext(q.m);}
+  if(C.needPct){ext(C.pHigh==null?NaN:C.pHigh);ext(C.pLow==null?NaN:C.pLow);}
+  if(!(hi>lo)){lo-=0.5;hi+=0.5;}
+  const pad=(hi-lo)*0.10;lo-=pad;hi+=pad;
+  const yp=v=>T+(hi-v)/(hi-lo)*PH;
+
+  ctx.save();ctx.beginPath();ctx.rect(L,T,PW,PH);ctx.clip();
+  // horizontal grid
+  const pstep=niceStep((hi-lo)/Math.max(2,PH/38)),gl=[];
+  ctx.strokeStyle=th.grid;ctx.lineWidth=1;
+  for(let v=Math.ceil(lo/pstep)*pstep;v<hi;v+=pstep){
+    const y=Math.round(yp(v))+0.5;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(R,y);ctx.stroke();gl.push(v);
+  }
+  // vertical grid: same spacing as the main chart so the two panes line up
+  const raw=Math.ceil((W<520?84:110)/bw),step=NICE_STEPS.find(q=>q>=raw)||raw;
+  for(let i=Math.max(0,Math.floor(s0));i<=i1;i++){
+    if(i%step!==0)continue;
+    const x=Math.round(xi(i))+0.5;ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,B);ctx.stroke();
+  }
+  // tier levels
+  const tags=[];
+  if(o.mode==='levels'){
+    const lv=[[o.l1,3],[o.l2,4],[o.l3,1],[o.l4,2]];
+    for(const[val,ci]of lv){
+      if(val<lo||val>hi)continue;
+      const y=Math.round(yp(val))+0.5;
+      ctx.strokeStyle=RATIO_COL[ci];ctx.globalAlpha=0.75;ctx.lineWidth=1;ctx.setLineDash([5,4]);
+      ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(R,y);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+      ctx.fillStyle=RATIO_COL[ci];ctx.textAlign='left';ctx.fillText(val.toFixed(1),L+6,y-7);
+    }
+  }
+  // adaptive percentile lines: only the last `drawBars` bars, as in the MT5 indicator
+  if(C.needPct&&C.pHigh!=null&&C.pLow!=null){
+    const ci=lowerBound(bars,RR.t[C.winStart]),x1=Math.max(L,xi(ci)-bw/2);
+    const pl=[[C.pHigh,'#ff00ff'],[C.pLow,'#ffff00']];
+    for(const[val,col]of pl){
+      const y=Math.round(yp(val))+0.5;
+      ctx.strokeStyle=col;ctx.lineWidth=1;ctx.setLineDash([6,3,1,3]);
+      ctx.beginPath();ctx.moveTo(x1,y);ctx.lineTo(R,y);ctx.stroke();ctx.setLineDash([]);
+      tags.push({v:val,c:col});
+    }
+  }
+  // moving average
+  if(o.showMA){
+    ctx.strokeStyle='#ffd700';ctx.lineWidth=1;ctx.beginPath();let pen=false;
+    for(const q of pts){
+      if(!Number.isFinite(q.m)){pen=false;continue;}
+      if(pen)ctx.lineTo(q.x,yp(q.m));else ctx.moveTo(q.x,yp(q.m));pen=true;
+    }
+    ctx.stroke();
+  }
+  // ratio line, coloured per segment by the zone of its end bar
+  ctx.lineWidth=2;ctx.lineJoin='round';
+  if(pts.length===1){ctx.fillStyle=RATIO_COL[pts[0].c];ctx.fillRect(pts[0].x-2,yp(pts[0].v)-2,4,4);}
+  for(let k=1;k<pts.length;){
+    const c=pts[k].c;
+    ctx.beginPath();ctx.moveTo(pts[k-1].x,yp(pts[k-1].v));
+    while(k<pts.length&&pts[k].c===c){ctx.lineTo(pts[k].x,yp(pts[k].v));k++;}
+    ctx.strokeStyle=RATIO_COL[c];ctx.stroke();
+  }
+  // crosshair (vertical line follows the cursor from the main chart; horizontal only inside this pane)
+  const hv=st.hover,inX=hv&&hv.x>=L&&hv.x<=R,inY=inX&&hv.y>=T&&hv.y<=B;
+  if(inX){
+    ctx.strokeStyle=th.cross;ctx.lineWidth=1;ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(Math.round(hv.x)+0.5,T);ctx.lineTo(Math.round(hv.x)+0.5,B);
+    if(inY){ctx.moveTo(L,Math.round(hv.y)+0.5);ctx.lineTo(R,Math.round(hv.y)+0.5);}
+    ctx.stroke();ctx.setLineDash([]);
+  }
+  ctx.restore(); // end clip
+
+  // right axis
+  ctx.fillStyle=th.bg;ctx.fillRect(R,y0+1,AXIS_W,h-1);
+  ctx.strokeStyle=th.grid;ctx.beginPath();ctx.moveTo(R+0.5,y0);ctx.lineTo(R+0.5,y0+h);ctx.stroke();
+  ctx.fillStyle=th.muted;ctx.textAlign='left';
+  for(const v of gl){const y=yp(v);if(y>T+6&&y<B-6)ctx.fillText(v.toFixed(2),R+6,y);}
+  const tag=(v,c)=>{const y=yp(v);if(y<T||y>B)return;ctx.fillStyle=c;ctx.fillRect(R,y-8,AXIS_W,16);
+    ctx.fillStyle=th.tagText||'#0b0f14';ctx.textAlign='left';ctx.fillText(v.toFixed(2),R+6,y);};
+  for(const q of tags)tag(q.v,q.c);
+  const lastV=RR.v[nR-1],lastC=RATIO_COL[C.col[nR-1]];
+  tag(lastV,lastC);
+  if(inY)tag(hi-(hv.y-T)/PH*(hi-lo),th.cross);
+
+  // legend: title, then value / MA / percentiles for the hovered bar (or the latest bar)
+  let hp=null;
+  if(inX){const hi2=Math.floor(s0+(hv.x-L)/bw);for(const q of pts)if(q.i===hi2){hp=q;break;}}
+  const sv=hp?hp.v:lastV,sc=hp?RATIO_COL[hp.c]:lastC,sm=hp?hp.m:C.ma[nR-1];
+  const LEG='bold 12px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+  const parts=[
+    {f:LEG,c:th.text,t:'Gold/Silver Ratio ('+RS.gold+'/'+RS.silver+')'},
+    {f:LEG,c:sc,t:sv.toFixed(2)}
+  ];
+  if(o.showMA&&Number.isFinite(sm))parts.push({f:FONT,c:'#ffd700',t:'MA('+o.maPeriod+') '+sm.toFixed(2)});
+  if(C.needPct&&C.pHigh!=null&&C.pLow!=null){
+    parts.push({f:FONT,c:'#ff00ff',t:'P'+o.highPct.toFixed(0)+' '+C.pHigh.toFixed(2)});
+    parts.push({f:FONT,c:'#ffff00',t:'P'+o.lowPct.toFixed(0)+' '+C.pLow.toFixed(2)});
+  }
+  let lx=8;ctx.textAlign='left';
+  for(const q of parts){
+    ctx.font=q.f;const w=ctx.measureText(q.t).width;
+    if(lx+w>R-8)break;                              // phones: drop what does not fit
+    ctx.fillStyle=th.bg;ctx.globalAlpha=0.8;ctx.fillRect(lx-2,T,w+4,14);ctx.globalAlpha=1;
+    ctx.fillStyle=q.c;ctx.fillText(q.t,lx,T+8);lx+=w+12;
+  }
+  ctx.font=FONT;
+  if(o.bad){ctx.fillStyle=th.warn||'#facc15';ctx.textAlign='left';ctx.fillText(o.bad,8,B-8);}
+  ctx.restore();
+}
 // </render>
 
 // ---------------------------------------------------------------------------
@@ -621,7 +863,7 @@ if(typeof document!=='undefined'){
 const $=id=>document.getElementById(id);
 const cv=$('cv'),wrap=$('wrap'),ctx=cv.getContext('2d');
 const S={bars:[],tfMs:15*MIN,title:'',name:'',view:{start:0,barW:8},anchor:null,prof:null,pins:null,hover:null,
-  layout:null,dec:5,opts:null,anchorLabel:'',loadId:0,status:'',err:'',anchorWarn:'',dismissed:'',lastPx:null};
+  layout:null,dec:5,opts:null,anchorLabel:'',loadId:0,status:'',err:'',anchorWarn:'',dismissed:'',lastPx:null,ratio:null,ratioAlert:''};
 let W=800,H=500,raf=0,drag=null,theme=null;
 
 // ---- instrument dropdown ----
@@ -652,7 +894,7 @@ function syncInst(){
 function readTheme(){
   const cs=getComputedStyle(document.documentElement),g=n=>cs.getPropertyValue(n).trim();
   theme={bg:g('--bg'),grid:g('--grid'),text:g('--text'),muted:g('--muted'),up:g('--up'),down:g('--down'),
-    band:g('--band'),boundary:g('--boundary'),cross:g('--cross'),poc:g('--poc'),valine:g('--valine'),tagText:'#0b0f14',
+    band:g('--band'),boundary:g('--boundary'),cross:g('--cross'),poc:g('--poc'),valine:g('--valine'),tagText:'#0b0f14',border:g('--border'),warn:g('--warn'),
     upperBase:'#3b82f6',upperVA:'#38bdf8',lowerBase:'#DAA520',lowerVA:'#F0E68C',pinUp:'#d946ef',pinDown:'#4ade80'};
 }
 function opts(){
@@ -665,10 +907,18 @@ function opts(){
 }
 
 // ---- drawing ----
+const zoomEl=document.querySelector('.zoom');
+function ratioPaneH(){
+  if(!$('showRatio').checked||!S.bars.length||H<300)return 0;
+  return Math.round(clamp(H*0.27,110,240));
+}
 function draw(){
   raf=0;if(!theme)readTheme();
-  S.layout=drawChart(ctx,W,H,{bars:S.bars,tfMs:S.tfMs,title:S.title,view:S.view,anchor:S.anchor,prof:S.prof,pins:S.pins,
-    hover:S.hover,dec:S.dec,opts:S.opts||opts(),anchorLabel:S.anchorLabel},theme);
+  const subH=ratioPaneH(),st={bars:S.bars,tfMs:S.tfMs,title:S.title,view:S.view,anchor:S.anchor,prof:S.prof,pins:S.pins,
+    hover:S.hover,dec:S.dec,opts:S.opts||opts(),anchorLabel:S.anchorLabel,ratio:S.ratio};
+  S.layout=drawChart(ctx,W,H-subH,st,theme);
+  if(subH)drawRatioPane(ctx,W,H-subH,subH,st,theme,S.layout);
+  zoomEl.style.bottom=(subH+(W<520?26:28))+'px';      // keep the zoom buttons on the price chart
 }
 function schedule(){if(!raf)raf=requestAnimationFrame(draw);}
 function resize(){
@@ -738,7 +988,7 @@ function setStatus(msg){S.status=msg;S.err='';showStatus(msg);refreshAlert();}  
 function setErr(msg){S.status=msg;S.err=msg;showStatus(msg);refreshAlert();}      // problems: also surfaced in the banner
 // The banner is the only thing besides the chart/status bar that appears on screen, and only when something needs attention.
 function refreshAlert(){
-  const msg=S.err||S.anchorWarn||'',show=!!msg&&msg!==S.dismissed;
+  const msg=S.err||S.anchorWarn||S.ratioAlert||'',show=!!msg&&msg!==S.dismissed;
   $('alert').hidden=!show;$('alertTxt').textContent=show?msg:'';
 }
 
@@ -780,8 +1030,10 @@ async function fetchHistory(inst,tfKey,startMs){
         // Newest-first pages of up to 1000 bars; walk backwards with `to` until we pass startMs or run out of history.
         let to=null,prevOldest=Infinity;
         for(let p=0;p<40;p++){
-          const j=await getJSON(base+'/api/'+encodeURIComponent(inst.sym)+'/ohlc?interval='+tfKey+'&limit=1000'
-            +(to!==null?'&to='+encodeURIComponent(new Date(to).toISOString()):''));
+          let j;
+          try{j=await getJSON(base+'/api/'+encodeURIComponent(inst.sym)+'/ohlc?interval='+tfKey+'&limit=1000'
+            +(to!==null?'&to='+encodeURIComponent(new Date(to).toISOString()):''));}
+          catch(e){if(p===0)throw e;break;}          // older page failed: keep the newer bars we have
           const list=(j&&j.bars)||[];
           if(!list.length)break;
           let oldest=Infinity;
@@ -869,6 +1121,7 @@ async function load(keepView){
       setStatus('Biquote returned '+bars.length.toLocaleString('en-US')+' bars ('+fmtFull(bars[0].t)+' → '+fmtFull(bars[bars.length-1].t)+' UTC); its history does not reach back far enough for this anchor. Try a larger chart timeframe.');
     rebuild();if(!keepView)resetView();
     if(inst.venue)startFeed(inst,tfKey);
+    ratioLoad();
   }catch(e){
     if(id!==S.loadId)return;
     if(!S.bars.length&&inst.id!=='demo'){
@@ -876,12 +1129,85 @@ async function load(keepView){
       S.bars=genDemo(tfMs,Date.now()-need.start+tfMs*20,Date.now(),7);S.tfMs=tfMs;S.title='DEMO · '+tfKey+' · synthetic data';S.name='Demo';S.sym=null;S.lastPx=null;
       rebuild();resetView();
       setErr('Could not load '+inst.name+' ('+e.message+'). Showing demo data instead.');
+      ratioLoad();
     }else{
       S.bars=[];S.title='';rebuild();
       setErr('Could not load '+inst.name+': '+e.message);
     }
     setLive('offline');
   }
+}
+
+// ---- Gold/Silver ratio (Biquote XAUUSD / XAGUSD on the chart's timeframe) ----
+const RINST={g:{venue:'biquote',sym:'XAUUSD',name:'Gold'},s:{venue:'biquote',sym:'XAGUSD',name:'Silver'}};
+const RG={id:0,pollT:null,g:[],s:[],cache:null,lastState:-1};
+const ratioTf=()=>Object.keys(TF_MS).find(k=>TF_MS[k]===S.tfMs)||null;
+function ratioOpts(){
+  const n=(id,d)=>{const v=parseFloat($(id).value);return Number.isFinite(v)?v:d;};
+  const o={show:$('showRatio').checked,mode:$('rMode').value,l1:n('rL1',68),l2:n('rL2',70),l3:n('rL3',80),l4:n('rL4',90),
+    showPct:$('rShowPct').checked,lowPct:n('rLowPct',10),highPct:n('rHighPct',90),autoLb:$('rAutoLb').checked,
+    lbDays:Math.max(1,Math.round(n('rLbDays',365))),drawBars:Math.max(0,Math.round(n('rDrawBars',50))),
+    maPeriod:Math.max(2,Math.round(n('rMAPeriod',100))),showMA:$('rShowMA').checked,alerts:$('rAlerts').checked,bad:''};
+  if(!(o.l1<o.l2&&o.l2<o.l3&&o.l3<o.l4)){o.l1=68;o.l2=70;o.l3=80;o.l4=90;o.bad='Tier levels must be ascending: defaults used.';}
+  if(!(o.lowPct>=0&&o.highPct<=100&&o.lowPct<o.highPct)){o.lowPct=10;o.highPct=90;o.bad='Percentiles need 0 ≤ low < high ≤ 100: defaults used.';}
+  return o;
+}
+function ratioStop(){RG.id++;clearInterval(RG.pollT);RG.pollT=null;}
+function ratioPollCtl(){
+  clearInterval(RG.pollT);RG.pollT=null;
+  const ro=ratioOpts();
+  if(ro.show&&$('auto').checked&&S.ratio&&S.ratio.R){const id=RG.id;RG.pollT=setInterval(()=>ratioPoll(id),3000);}
+}
+async function ratioLoad(){
+  ratioStop();
+  const id=RG.id,ro=ratioOpts();
+  RG.cache=null;RG.lastState=-1;S.ratioAlert='';refreshAlert();
+  if(!ro.show||!S.bars.length){S.ratio=null;schedule();return;}
+  const tfKey=ratioTf();
+  if(!tfKey){S.ratio={msg:'Gold/Silver ratio needs a 1m–4h chart timeframe.'};schedule();return;}
+  S.ratio={msg:'Loading Gold/Silver ratio…'};schedule();
+  try{
+    const start=Date.now()-ratioLookbackDays(S.tfMs,ro)*DAY;
+    const[g,sv]=await Promise.all([fetchHistory(RINST.g,tfKey,start),fetchHistory(RINST.s,tfKey,start)]);
+    if(id!==RG.id)return;
+    RG.g=g;RG.s=sv;ratioRecalc();ratioPollCtl();
+  }catch(e){
+    if(id!==RG.id)return;
+    S.ratio={msg:'Gold/Silver ratio unavailable: '+e.message};schedule();
+  }
+}
+function ratioRecalc(){
+  const ro=ratioOpts();
+  if(!ro.show){S.ratio=null;schedule();return;}
+  if(!RG.g.length||!RG.s.length){S.ratio={msg:'No gold/silver data returned.'};schedule();return;}
+  const R=buildRatio(RG.g,RG.s);
+  if(R.t.length<2){S.ratio={msg:'Not enough gold/silver data.'};schedule();return;}
+  const calc=calcRatio(R,ro,S.tfMs,RG.cache);RG.cache=calc;
+  S.ratio={R,calc,o:ro,msg:'',gold:RINST.g.sym,silver:RINST.s.sym};
+  // alert: fires once when the last CLOSED bar changes colour zone
+  if(R.t.length>3){
+    const bar=R.t.length-2,state=calc.col[bar];
+    if(RG.lastState===-1)RG.lastState=state;
+    else if(state!==RG.lastState){
+      RG.lastState=state;
+      if(ro.alerts&&state!==0){const m=ratioStateText(state,R.v[bar],ro,calc);if(m){S.ratioAlert=m;S.dismissed='';refreshAlert();}}
+    }
+  }
+  schedule();
+}
+async function ratioPoll(id){
+  if(id!==RG.id||document.hidden)return;
+  try{
+    const tfKey=ratioTf();if(!tfKey)return;
+    const[g,sv]=await Promise.all([fetchLatest(RINST.g,tfKey),fetchLatest(RINST.s,tfKey)]);
+    if(id!==RG.id)return;
+    const gl=RG.g[RG.g.length-1],sl=RG.s[RG.s.length-1];
+    if((g.length&&gl&&g[0].t-gl.t>S.tfMs*1.5)||(sv.length&&sl&&sv[0].t-sl.t>S.tfMs*1.5)){ratioLoad();return;}   // missed bars: reload
+    let ch=false;
+    for(const b of g)if(mergeBar(RG.g,b)!=='ignore')ch=true;
+    for(const b of sv)if(mergeBar(RG.s,b)!=='ignore')ch=true;
+    if(ch)ratioRecalc();
+  }catch(e){}
 }
 
 // ---- live feed: WebSocket with automatic reconnect, plus REST polling as a safety net ----
@@ -964,7 +1290,7 @@ $('file').addEventListener('change',async e=>{
     const{bars,tfMs}=parseCSV(await f.text());
     stopFeed();S.loadId++;S.bars=bars;S.tfMs=tfMs;S.title=f.name+' · '+Math.round(tfMs/MIN)+'m bars';S.name=f.name;S.sym=null;S.lastPx=null;
     setStatus(bars.length.toLocaleString('en-US')+' bars loaded ('+fmtFull(bars[0].t)+' → '+fmtFull(bars[bars.length-1].t)+'). Timestamps are used as exported (treated as UTC), so offset 0 puts the day boundary at your broker\'s midnight.');
-    rebuild();resetView();
+    rebuild();resetView();ratioLoad();
   }catch(err){setErr('Could not read the file: '+err.message);}
 });
 
@@ -982,10 +1308,18 @@ $('tf').addEventListener('change',()=>load());
 ['mode','rows','va','width','pinRatio','pinBody','showPOC','showVA','showBounds','extend','hiSrc','pins'].forEach(id=>
   $(id).addEventListener('change',()=>{rebuild();if(id==='width')resetView();}));
 $('auto').addEventListener('change',()=>{
+  ratioPollCtl();
   const inst=currentInstrument();
   if($('auto').checked){if(inst&&inst.venue&&S.bars.length)startFeed(inst,$('tf').value);}
   else{stopFeed();if(inst&&inst.venue)setLive('paused');}
 });
+
+$('showRatio').addEventListener('change',()=>{
+  if($('showRatio').checked)ratioLoad();
+  else{ratioStop();S.ratio=null;S.ratioAlert='';refreshAlert();schedule();}
+});
+['rMode','rL1','rL2','rL3','rL4','rShowPct','rLowPct','rHighPct','rDrawBars','rMAPeriod','rShowMA','rAutoLb','rLbDays','rAlerts'].forEach(id=>
+  $(id).addEventListener('change',()=>{if(id==='rAutoLb'||id==='rLbDays')ratioLoad();else ratioRecalc();}));
 
 // ---- settings sheet + banner ----
 const panel=$('panel'),gear=$('gear');
@@ -994,7 +1328,7 @@ gear.addEventListener('click',()=>setPanel(panel.hidden));
 $('pclose').addEventListener('click',()=>setPanel(false));
 document.addEventListener('keydown',e=>{if(e.key==='Escape')setPanel(false);});
 $('alertTxt').addEventListener('click',()=>setPanel(true));
-$('alertX').addEventListener('click',()=>{S.dismissed=S.err||S.anchorWarn||'';refreshAlert();});
+$('alertX').addEventListener('click',()=>{S.dismissed=S.err||S.anchorWarn||S.ratioAlert||'';refreshAlert();});
 
 // ---- chart interaction: one finger / mouse pans, two fingers pinch-zoom ----
 const ptrs=new Map();let pinch=null;
@@ -1036,17 +1370,8 @@ $('zreset').addEventListener('click',resetView);
 if(window.ResizeObserver)new ResizeObserver(resize).observe(wrap);else window.addEventListener('resize',resize);
 
 syncInst();resize();readTheme();S.opts=opts();load();
-window.__vp={S,Feed,rebuild,load,resetView,draw,applyBars,INSTRUMENTS,VENUES}; // handy for debugging in the console
+window.__vp={S,Feed,RG,rebuild,load,resetView,draw,applyBars,ratioLoad,ratioRecalc,INSTRUMENTS,VENUES}; // handy for debugging in the console
 })();
-}
-</script>
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(err => {
-      console.log('ServiceWorker registration failed:', err);
-    });
-  });
 }
 </script>
 </body>
