@@ -633,7 +633,7 @@ addGroup('Favorites',INSTRUMENTS.filter(i=>i.fav));
 addGroup('Biquote · broker feed',INSTRUMENTS.filter(i=>i.grp==='bq'));
 addGroup('More markets',INSTRUMENTS.filter(i=>!i.fav&&i.grp!=='bq'));
 addGroup('Other',[{id:'custom',label:'Custom symbol…'},{id:'csv',label:'CSV file (MT4/MT5 export)…'},{id:'demo',label:'Demo data (synthetic)'}]);
-sel.value='xau';
+sel.value='bq_xau';
 
 function currentInstrument(){
   const id=sel.value;
