@@ -1,6 +1,6 @@
 {
   "name": "Volume Profile · Pin Zones",
-  "short_name": "Gold Analysis",
+  "short_name": "Gold Edge",
   "description": "Volume profile + pin-zone indicator for Gold, FX and crypto.",
   "start_url": "./",
   "scope": "./",
@@ -9,18 +9,24 @@
   "orientation": "any",
   "background_color": "#10141a",
   "theme_color": "#10141a",
-"icons": [
-  {
-    "src": "icon-192.png",
-    "sizes": "192x192",
-    "type": "image/png",
-    "purpose": "any"
-  },
-  {
-    "src": "icon-512.png",
-    "sizes": "512x512",
-    "type": "image/png",
-    "purpose": "any"
-  }
-]
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
 }
