@@ -633,8 +633,7 @@ addGroup('Favorites',INSTRUMENTS.filter(i=>i.fav));
 addGroup('Biquote · broker feed',INSTRUMENTS.filter(i=>i.grp==='bq'));
 addGroup('More markets',INSTRUMENTS.filter(i=>!i.fav&&i.grp!=='bq'));
 addGroup('Other',[{id:'custom',label:'Custom symbol…'},{id:'csv',label:'CSV file (MT4/MT5 export)…'},{id:'demo',label:'Demo data (synthetic)'}]);
-//sel.value='xau';
-sel.value='bq_xau'
+sel.value='xau';
 
 function currentInstrument(){
   const id=sel.value;
@@ -778,7 +777,7 @@ async function fetchHistory(inst,tfKey,startMs){
       if(inst.venue==='biquote'){
         // Newest-first pages of up to 1000 bars; walk backwards with `to` until we pass startMs or run out of history.
         let to=null,prevOldest=Infinity;
-        for(let p=0;p<20;p++){
+        for(let p=0;p<40;p++){
           const j=await getJSON(base+'/api/'+encodeURIComponent(inst.sym)+'/ohlc?interval='+tfKey+'&limit=1000'
             +(to!==null?'&to='+encodeURIComponent(new Date(to).toISOString()):''));
           const list=(j&&j.bars)||[];
@@ -787,7 +786,7 @@ async function fetchHistory(inst,tfKey,startMs){
           for(const k of list){const b=biquoteRowToBar(k);if(Number.isFinite(b.t)){out.push(b);if(b.t<oldest)oldest=b.t;}}
           if(!Number.isFinite(oldest)||oldest>=prevOldest)break;   // no progress
           prevOldest=oldest;
-          if(oldest<=startMs||list.length<1000)break;
+          if(oldest<=startMs)break;
           to=oldest-1;
         }
       }else if(inst.venue==='bybit'){
@@ -864,6 +863,8 @@ async function load(keepView){
     if(id!==S.loadId)return;
     S.bars=bars;S.tfMs=tfMs;S.title=title;S.name=inst.name;S.lastPx=null;
     setStatus(need.capped?'Loaded the most recent 15,000 bars (the anchor candle may be only partly covered; use a larger chart timeframe).':'');
+    if(inst.venue==='biquote'&&bars.length&&bars[0].t>need.start+tfMs*2)
+      setStatus('Biquote returned '+bars.length.toLocaleString('en-US')+' bars ('+fmtFull(bars[0].t)+' → '+fmtFull(bars[bars.length-1].t)+' UTC); its history does not reach back far enough for this anchor. Try a larger chart timeframe.');
     rebuild();if(!keepView)resetView();
     if(inst.venue)startFeed(inst,tfKey);
   }catch(e){
