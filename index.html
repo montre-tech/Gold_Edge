@@ -9,6 +9,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Volume Profile · Pin Zones</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2310141a'/%3E%3Crect x='12' y='22' width='40' height='5' fill='%233b82f6'/%3E%3Crect x='12' y='30' width='30' height='5' fill='%2338bdf8'/%3E%3Crect x='12' y='38' width='20' height='5' fill='%23DAA520'/%3E%3C/svg%3E">
 <style>
 :root{
   color-scheme:dark;
@@ -1036,6 +1038,15 @@ if(window.ResizeObserver)new ResizeObserver(resize).observe(wrap);else window.ad
 syncInst();resize();readTheme();S.opts=opts();load();
 window.__vp={S,Feed,rebuild,load,resetView,draw,applyBars,INSTRUMENTS,VENUES}; // handy for debugging in the console
 })();
+}
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => {
+      console.log('ServiceWorker registration failed:', err);
+    });
+  });
 }
 </script>
 </body>
