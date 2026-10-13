@@ -759,7 +759,7 @@ function updateTicker(){
     chEl.textContent=(pct>=0?'+':'')+pct.toFixed(2)+'%';chEl.title='vs '+S.anchorLabel.toLowerCase()+' close';
     chEl.className='chg '+(pct>=0?'up':'down');
   }else chEl.textContent='';
-  document.title=fmtP(last.c,S.dec)+' · '+(S.name||'Volume Profile');
+  document.title=(S.sym||S.name||'Volume Profile')+' Analysis '+fmtP(last.c,S.dec);
 }
 
 // ---- history loading ----
@@ -861,7 +861,7 @@ async function load(keepView){
       title=inst.name+' · '+inst.sym+' · '+tfKey+' · '+VENUES[inst.venue].name;
     }
     if(id!==S.loadId)return;
-    S.bars=bars;S.tfMs=tfMs;S.title=title;S.name=inst.name;S.lastPx=null;
+    S.bars=bars;S.tfMs=tfMs;S.title=title;S.name=inst.name;S.sym=inst.sym;S.lastPx=null;
     setStatus(need.capped?'Loaded the most recent 15,000 bars (the anchor candle may be only partly covered; use a larger chart timeframe).':'');
     if(inst.venue==='biquote'&&bars.length&&bars[0].t>need.start+tfMs*2)
       setStatus('Biquote returned '+bars.length.toLocaleString('en-US')+' bars ('+fmtFull(bars[0].t)+' → '+fmtFull(bars[bars.length-1].t)+' UTC); its history does not reach back far enough for this anchor. Try a larger chart timeframe.');
@@ -871,7 +871,7 @@ async function load(keepView){
     if(id!==S.loadId)return;
     if(!S.bars.length&&inst.id!=='demo'){
       const need=neededStart(tfMs,o);
-      S.bars=genDemo(tfMs,Date.now()-need.start+tfMs*20,Date.now(),7);S.tfMs=tfMs;S.title='DEMO · '+tfKey+' · synthetic data';S.name='Demo';S.lastPx=null;
+      S.bars=genDemo(tfMs,Date.now()-need.start+tfMs*20,Date.now(),7);S.tfMs=tfMs;S.title='DEMO · '+tfKey+' · synthetic data';S.name='Demo';S.sym=null;S.lastPx=null;
       rebuild();resetView();
       setErr('Could not load '+inst.name+' ('+e.message+'). Showing demo data instead.');
     }else{
@@ -960,7 +960,7 @@ $('file').addEventListener('change',async e=>{
   const f=e.target.files&&e.target.files[0];if(!f)return;
   try{
     const{bars,tfMs}=parseCSV(await f.text());
-    stopFeed();S.loadId++;S.bars=bars;S.tfMs=tfMs;S.title=f.name+' · '+Math.round(tfMs/MIN)+'m bars';S.name=f.name;S.lastPx=null;
+    stopFeed();S.loadId++;S.bars=bars;S.tfMs=tfMs;S.title=f.name+' · '+Math.round(tfMs/MIN)+'m bars';S.name=f.name;S.sym=null;S.lastPx=null;
     setStatus(bars.length.toLocaleString('en-US')+' bars loaded ('+fmtFull(bars[0].t)+' → '+fmtFull(bars[bars.length-1].t)+'). Timestamps are used as exported (treated as UTC), so offset 0 puts the day boundary at your broker\'s midnight.');
     rebuild();resetView();
   }catch(err){setErr('Could not read the file: '+err.message);}
