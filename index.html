@@ -8,6 +8,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VolProfile">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <title>Volume Profile · Pin Zones</title>
 <style>
 :root{
@@ -1372,6 +1376,12 @@ if(window.ResizeObserver)new ResizeObserver(resize).observe(wrap);else window.ad
 syncInst();resize();readTheme();S.opts=opts();load();
 window.__vp={S,Feed,RG,rebuild,load,resetView,draw,applyBars,ratioLoad,ratioRecalc,INSTRUMENTS,VENUES}; // handy for debugging in the console
 })();
+}
+</script>
+<script>
+// PWA: register the service worker (needs HTTPS or localhost; silently skipped on file://)
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }
 </script>
 </body>
