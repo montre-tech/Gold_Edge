@@ -184,7 +184,7 @@ canvas{position:absolute;inset:0;touch-action:none;cursor:crosshair;display:bloc
       <label>Low percentile<input id="rLowPct" type="number" value="10" step="1" min="0" max="100" inputmode="decimal"></label>
       <label>High percentile<input id="rHighPct" type="number" value="90" step="1" min="0" max="100" inputmode="decimal"></label>
       <label>Draw percentile lines this many bars back (0 = all)<input id="rDrawBars" type="number" value="50" step="1" min="0" inputmode="numeric"></label>
-      <label>MA period (bars)<input id="rMAPeriod" type="number" value="50" step="1" min="2" inputmode="numeric"></label>
+      <label>MA period (bars)<input id="rMAPeriod" type="number" value="100" step="1" min="2" inputmode="numeric"></label>
       <label>Custom history window (days, when auto is off)<input id="rLbDays" type="number" value="365" step="1" min="1" inputmode="numeric"></label>
     </div>
     <div class="checks" style="margin-top:10px">
@@ -196,6 +196,13 @@ canvas{position:absolute;inset:0;touch-action:none;cursor:crosshair;display:bloc
 
     <h3>Current levels</h3>
     <section class="info" id="info" aria-live="polite"></section>
+
+    <h3>Install on phone</h3>
+    <div class="fields">
+      <button id="installBtn" type="button" style="display:none">Install app</button>
+      <button id="diagBtn" type="button">Check install requirements</button>
+    </div>
+    <pre id="pwaDiag" style="white-space:pre-wrap;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;margin:8px 0 0;opacity:.9"></pre>
 
     <p class="note">Binance/Bybit prices come from exchange perpetual/spot feeds (USDT-quoted), so levels can differ slightly from MT4/MT5. Biquote instruments use an MT5 broker feed (closer to MT4/MT5), but their volume is tick volume (ticks per bar), the same as MT5 shows for forex/CFDs, and history is limited to roughly 2,000 bars per timeframe. The Gold/Silver ratio always uses Biquote XAUUSD and XAGUSD on the chart's timeframe (whatever instrument is on the chart), so its percentile window is limited by Biquote's history (about 2,000 bars). Times in UTC. Educational tool, not financial advice. Tip: on a phone, use your browser's "Add to Home Screen" to open this full-screen.</p>
   </section>
@@ -1379,6 +1386,43 @@ window.__vp={S,Feed,RG,rebuild,load,resetView,draw,applyBars,ratioLoad,ratioReca
 }
 </script>
 <script>
+// PWA install helper + diagnostics (shows exactly what the browser is missing)
+let deferredInstall=null,installEvt=false;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;installEvt=true;
+  const b=document.getElementById('installBtn');if(b)b.style.display='';pwaDiag();});
+window.addEventListener('appinstalled',()=>{deferredInstall=null;const b=document.getElementById('installBtn');if(b)b.style.display='none';pwaDiag();});
+document.getElementById('installBtn').addEventListener('click',async()=>{
+  if(!deferredInstall)return;deferredInstall.prompt();try{await deferredInstall.userChoice;}catch(e){}deferredInstall=null;
+  document.getElementById('installBtn').style.display='none';pwaDiag();
+});
+document.getElementById('diagBtn').addEventListener('click',pwaDiag);
+async function pwaDiag(){
+  const out=document.getElementById('pwaDiag'),L=[],ok=(c,t)=>L.push((c?'✓ ':'✗ ')+t);
+  const ua=navigator.userAgent,m=ua.match(/(Chrome|Firefox|EdgA|SamsungBrowser|OPR|Brave)\/([\d.]+)/);
+  const webview=/; wv\)|FBAN|FBAV|Instagram|Line\/|MicroMessenger|GSA\//.test(ua);
+  L.push('Address: '+location.protocol+'//'+location.host+location.pathname);
+  L.push('Browser: '+(m?m[1]+' '+m[2]:'unknown')+(webview?'  (embedded in-app browser!)':''));
+  ok(window.isSecureContext,'Secure context (HTTPS)');
+  ok(!webview,'Opened in a real browser, not inside another app');
+  ok(matchMedia('(display-mode: standalone)').matches?false:true,'Not already running as an installed app');
+  const link=document.querySelector('link[rel=manifest]');ok(!!link,'Manifest linked');
+  if(link){try{
+    const r=await fetch(link.href,{cache:'no-store'});ok(r.ok,'Manifest downloads (HTTP '+r.status+')');
+    const j=await r.json();ok(!!(j.name&&j.start_url&&j.display),'Manifest has name, start_url, display');
+    const ic=j.icons||[];ok(ic.some(i=>/192/.test(i.sizes))&&ic.some(i=>/512/.test(i.sizes)),'Icons 192 and 512 declared');
+    for(const i of ic.slice(0,2)){const ir=await fetch(new URL(i.src,link.href),{cache:'no-store'});ok(ir.ok,'Icon loads: '+i.src+' (HTTP '+ir.status+')');}
+  }catch(e){ok(false,'Manifest problem: '+e.message);}}
+  if('serviceWorker' in navigator){
+    const reg=await navigator.serviceWorker.getRegistration().catch(()=>null);
+    ok(!!reg,'Service worker registered');ok(!!(reg&&reg.active),'Service worker active');
+  }else ok(false,'Service workers supported');
+  L.push(installEvt?'✓ Browser says: installable (Install button above)':'… Browser has not offered the install prompt (yet)');
+  if(!window.isSecureContext)L.push('\n→ Open this page through an https:// address (e.g. GitHub Pages), not a file or http link.');
+  else if(webview)L.push('\n→ Open the address in Chrome/Firefox/Edge itself, not in an app\'s built-in browser.');
+  else if(!installEvt&&!matchMedia('(display-mode: standalone)').matches)L.push('\n→ Everything above is fine but the browser still withholds the prompt: that is a phone/browser limit (Google Play services, storage, or shortcut permission). Try Firefox or Edge → menu → "Add to Home screen"/"Install".');
+  out.textContent=L.join('\n');
+}
+setTimeout(pwaDiag,2500);
 // PWA: register the service worker (needs HTTPS or localhost; silently skipped on file://)
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
