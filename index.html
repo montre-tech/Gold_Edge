@@ -216,6 +216,17 @@ canvas{position:absolute;inset:0;touch-action:none;cursor:crosshair;display:bloc
       </label>
       <label class="btnwrap"><button id="sgTest" type="button">Send test alert</button></label>
     </div>
+    <div class="checks" style="margin-top:10px">
+      <label class="chk"><input id="sgWa" type="checkbox">Send alerts to WhatsApp (Whapi)</label>
+    </div>
+    <div class="fields" id="waFields" hidden style="margin-top:10px">
+      <label class="wide">Whapi API token<input id="waToken" type="password" autocomplete="off" spellcheck="false" placeholder="paste your Whapi channel token"></label>
+      <label class="wide">Send to (phone number with country code, or a group ID)<input id="waTo" type="text" autocomplete="off" spellcheck="false" placeholder="254712345678   or   120363…@g.us"></label>
+      <label class="chk"><input id="waRemember" type="checkbox" checked>Remember on this device</label>
+      <label class="btnwrap"><button id="waForget" type="button" class="ghost">Forget token</button></label>
+      <p class="note wide" style="margin:0">The token is kept only in this browser (never in the page's code or your GitHub repo) and is sent only to gate.whapi.cloud. Anyone who can use this browser profile can read it. Use &ldquo;Send test alert&rdquo; to check the connection.</p>
+      <section class="info wide" id="waInfo" aria-live="polite"></section>
+    </div>
     <section class="info" id="sgInfo" aria-live="polite" style="margin-top:10px"></section>
     <section class="info" id="sgLog" style="margin-top:6px"></section>
 
@@ -1208,12 +1219,69 @@ function sigCompute(openPx,openT){
 }
 function sigMessage(ev,openPx,openT){
   const f=v=>fmtP(v,S.dec),sell=ev.side==='sell';
-  return ev.side.toUpperCase()+' · '+(S.name||'Chart')+' '+sigTf()+' · candle opened '+f(openPx)+' ('+fmtHM(openT)+' UTC) '
+  return (sell?'▼ ':'▲ ')+ev.side.toUpperCase()+' · '+(S.name||'Chart')+' '+sigTf()+' · candle opened '+f(openPx)+' ('+fmtHM(openT)+' UTC) '
     +(sell?'below ':'above ')+(ev.rule==='both'?'both POC lines':'a POC line')+' ('+ev.list.map(x=>x.label+' '+f(x.price)).join(' · ')+') · '
     +'MA('+ev.maPeriod+') '+ev.maV.toFixed(2)+' is '+(sell?'below':'above')+' the ratio '+ev.rV.toFixed(2);
 }
 
-// ---- delivery: banner (always) + sound / vibration / system notification (as ticked) ----
+// WhatsApp text: arrow direction first (⬆️ buy / ⬇️ sell), then the details. *bold* is WhatsApp formatting.
+function sigWhatsApp(ev,openPx,openT){
+  const f=v=>fmtP(v,S.dec),sell=ev.side==='sell';
+  return (sell?'⬇️ *SELL*':'⬆️ *BUY*')+' — '+(S.name||'Chart')+' '+sigTf()+'\n'
+    +'Candle opened '+f(openPx)+' ('+fmtHM(openT)+' UTC) '+(sell?'below ':'above ')+(ev.rule==='both'?'both POC lines':'a POC line')+'\n'
+    +ev.list.map(x=>x.label+' '+f(x.price)).join(' · ')+'\n'
+    +'Gold/Silver ratio: MA('+ev.maPeriod+') '+ev.maV.toFixed(2)+' is '+(sell?'below':'above')+' the ratio '+ev.rV.toFixed(2);
+}
+
+// ---- WhatsApp via Whapi (https://gate.whapi.cloud/messages/text, Bearer token, JSON {to, body}) ----
+const WA_URL='https://gate.whapi.cloud/messages/text';
+const WA_KEYS={on:'vp_wa_on',token:'vp_wa_token',to:'vp_wa_to',rem:'vp_wa_rem'};
+// phone numbers: digits only (no +, spaces or dashes); group / channel ids (contain "@") are used as typed
+function waNormalizeTo(v){v=(v||'').trim();if(!v)return'';return v.indexOf('@')>=0?v:v.replace(/\D/g,'');}
+function waOpts(){return{on:$('sgWa').checked,token:$('waToken').value.trim(),to:waNormalizeTo($('waTo').value),remember:$('waRemember').checked};}
+function waInfo(msg,cls){const el=$('waInfo');if(!el)return;el.textContent=msg||'';el.className='info wide'+(cls?' '+cls:'');}
+function waSave(){
+  try{
+    const o=waOpts(),ls=window.localStorage;
+    if(!ls)return;
+    if(o.remember){ls.setItem(WA_KEYS.on,o.on?'1':'0');ls.setItem(WA_KEYS.token,o.token);ls.setItem(WA_KEYS.to,$('waTo').value.trim());ls.setItem(WA_KEYS.rem,'1');}
+    else Object.values(WA_KEYS).forEach(k=>ls.removeItem(k));
+  }catch(e){}
+}
+function waLoad(){
+  try{
+    const ls=window.localStorage;if(!ls||ls.getItem(WA_KEYS.rem)!=='1')return;
+    $('waToken').value=ls.getItem(WA_KEYS.token)||'';$('waTo').value=ls.getItem(WA_KEYS.to)||'';
+    $('sgWa').checked=ls.getItem(WA_KEYS.on)==='1';$('waRemember').checked=true;
+  }catch(e){}
+  $('waFields').hidden=!$('sgWa').checked;
+}
+// Returns {ok:true,id} or {ok:false,error}. Never throws.
+async function sendWhatsApp(text){
+  const o=waOpts();
+  if(!o.token)return{ok:false,error:'paste your Whapi API token first'};
+  if(!o.to)return{ok:false,error:'enter the phone number (with country code) or group ID to send to'};
+  try{
+    const r=await fetch(WA_URL,{method:'POST',headers:{accept:'application/json','content-type':'application/json',authorization:'Bearer '+o.token},
+      body:JSON.stringify({to:o.to,body:text})});
+    let j=null;try{j=await r.json();}catch(e){}
+    if(!r.ok||(j&&j.sent===false)){
+      const m=j&&((j.error&&(j.error.message||(typeof j.error==='string'?j.error:'')))||j.message)||'';
+      const hint=r.status===401?' (token not accepted, or the channel is not connected)':r.status===403?' (not allowed to send to this recipient)':'';
+      return{ok:false,error:'HTTP '+r.status+(m?' – '+m:'')+hint};
+    }
+    return{ok:true,id:j&&((j.message&&j.message.id)||(j.sent_message&&j.sent_message.id))||''};
+  }catch(e){return{ok:false,error:'could not reach Whapi ('+(e&&e.message||'network error')+'). Check your connection.'};}
+}
+async function sendWhatsAppAlert(text){
+  waInfo('Sending to WhatsApp…');
+  const r=await sendWhatsApp(text),d=new Date(),hm=pad2(d.getUTCHours())+':'+pad2(d.getUTCMinutes())+':'+pad2(d.getUTCSeconds());
+  S.waLast=r;
+  waInfo(r.ok?'✓ WhatsApp alert sent at '+hm+' UTC':'✗ WhatsApp not sent at '+hm+' UTC: '+r.error,r.ok?'up':'down');
+  return r;
+}
+
+// ---- delivery: banner (always) + sound / vibration / system notification / WhatsApp (as ticked) ----
 let AC=null;
 function audioUnlock(){
   try{
@@ -1241,13 +1309,14 @@ async function notifyUser(title,body){
   }catch(e){}
   try{new Notification(title,{body,tag:'vp-signal'});}catch(e){}
 }
-function fireSignal(kind,text,title){
+function fireSignal(kind,text,title,waText){
   S.sigLog.unshift({t:Date.now(),kind,text});if(S.sigLog.length>20)S.sigLog.pop();
   S.sigAlert=text;S.sigKind=kind;S.dismissed='';refreshAlert();renderSigLog();
   const so=sigOpts();
   if(so.sound)beep(kind);
   if(so.vibe&&navigator.vibrate){try{navigator.vibrate(kind==='sell'?[400,120,400]:[160,80,160,80,160]);}catch(e){}}
   if(so.notify)notifyUser(title,text);
+  if($('sgWa').checked)sendWhatsAppAlert(waText||text);
 }
 function renderSigLog(){
   const el=$('sgLog');el.textContent='';
@@ -1292,7 +1361,7 @@ function sigCheckPending(force){
   Sig.pending=null;clearTimeout(Sig.timer);
   const side=ev.met?ev.side:'';
   if(side&&(side!==Sig.last||sigOpts().repeat))
-    fireSignal(side,sigMessage(ev,p.o,p.t),side.toUpperCase()+' · '+(S.name||'Chart')+' '+sigTf());
+    fireSignal(side,sigMessage(ev,p.o,p.t),(side==='sell'?'▼ ':'▲ ')+side.toUpperCase()+' · '+(S.name||'Chart')+' '+sigTf(),sigWhatsApp(ev,p.o,p.t));
   Sig.last=side;
   updateSigInfo();
 }
@@ -1310,9 +1379,18 @@ $('sgNotify').addEventListener('change',async()=>{
 });
 $('sgTest').addEventListener('click',()=>{
   audioUnlock();
-  fireSignal('test','TEST alert · this is how a buy/sell alert will look and sound.','Test alert');
+  fireSignal('test','TEST alert · this is how a buy/sell alert will look and sound.','Test alert',
+    '🔔 *TEST* — Volume Profile alerts are connected.\nA real alert starts with ⬆️ *BUY* or ⬇️ *SELL*.');
 });
 document.addEventListener('pointerdown',audioUnlock,{passive:true});   // browsers only allow sound after a tap
+$('sgWa').addEventListener('change',()=>{$('waFields').hidden=!$('sgWa').checked;waSave();});
+['waToken','waTo','waRemember'].forEach(id=>$(id).addEventListener('change',waSave));
+$('waForget').addEventListener('click',()=>{
+  $('waToken').value='';$('waTo').value='';$('sgWa').checked=false;$('waFields').hidden=true;$('waRemember').checked=true;
+  try{Object.values(WA_KEYS).forEach(k=>window.localStorage.removeItem(k));}catch(e){}
+  waInfo('');
+});
+waLoad();
 
 // ---- Gold/Silver ratio (Biquote XAUUSD / XAGUSD on the chart's timeframe) ----
 const RINST={g:{venue:'biquote',sym:'XAUUSD',name:'Gold'},s:{venue:'biquote',sym:'XAGUSD',name:'Silver'}};
@@ -1548,7 +1626,7 @@ $('zreset').addEventListener('click',resetView);
 if(window.ResizeObserver)new ResizeObserver(resize).observe(wrap);else window.addEventListener('resize',resize);
 
 syncInst();resize();readTheme();S.opts=opts();load();
-window.__vp={S,Feed,RG,Sig,rebuild,load,resetView,draw,applyBars,ratioLoad,ratioRecalc,sigCompute,sigCheckPending,sigOnNewCandle,fireSignal,updateSigInfo,INSTRUMENTS,VENUES}; // handy for debugging in the console
+window.__vp={S,Feed,RG,Sig,sendWhatsApp,waNormalizeTo,rebuild,load,resetView,draw,applyBars,ratioLoad,ratioRecalc,sigCompute,sigCheckPending,sigOnNewCandle,fireSignal,updateSigInfo,INSTRUMENTS,VENUES}; // handy for debugging in the console
 })();
 }
 </script>
