@@ -53,16 +53,21 @@ button.ghost{color:var(--text);background:var(--field);border:1px solid var(--bo
 main{flex:1;min-height:0;position:relative}
 canvas{position:absolute;inset:0;touch-action:none;cursor:crosshair;display:block}
 .zoom{position:absolute;right:76px;bottom:28px;display:flex;gap:4px}
-/* drawing toolbar (right side, collapsible) */
-.tb{position:absolute;top:46px;right:76px;z-index:3;display:flex;flex-direction:column;align-items:flex-end;gap:4px;touch-action:manipulation;user-select:none;-webkit-user-select:none}
-.tbody{display:flex;flex-direction:column;gap:2px;padding:4px;background:rgba(26,32,41,.88);border:1px solid var(--border);border-radius:10px;overflow-y:auto;max-height:340px}
-.tb.collapsed .tbody{display:none}
-button.tbtn{width:34px;height:34px;padding:0;flex:none;display:grid;place-items:center;color:var(--text);background:transparent;border:1px solid transparent;border-radius:8px}
+/* drawing tools: one strip in the top bar, next to the live status */
+.tb{display:flex;align-items:center;gap:2px;margin-left:auto;min-width:0;overflow-x:auto;scrollbar-width:none;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.tb::-webkit-scrollbar{display:none}
+.top .live{margin-left:12px}
+button.tbtn{width:30px;height:28px;padding:0;flex:none;display:grid;place-items:center;color:var(--text);background:transparent;border:1px solid transparent;border-radius:6px}
+button.tbtn:hover{background:var(--field)}
 button.tbtn.on{background:var(--accent);color:#fff}
-button.tbtn.tog{background:rgba(26,32,41,.88);border-color:var(--border)}
-.tbtn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
-.tbtn .dot{width:16px;height:16px;border-radius:50%;border:2px solid #fff;pointer-events:none}
-.tsep{height:1px;background:var(--border);margin:2px 4px;flex:none}
+.tbtn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.tbtn .cdot{width:14px;height:14px;border-radius:50%;border:2px solid #fff;pointer-events:none}
+.tsep{width:1px;height:18px;background:var(--border);margin:0 3px;flex:none}
+@media (max-width:720px){                       /* phones: tools drop to their own line, still in the top bar */
+  .top{flex-wrap:wrap}
+  .tb{order:3;flex:0 0 100%;margin-left:0;padding-bottom:2px}
+  .top .live{margin-left:auto}
+}
 .zoom button{width:30px;height:30px;padding:0;font-size:16px;line-height:1;opacity:.85}
 
 /* ---- settings sheet: overlays the chart, so opening it never resizes the chart ---- */
@@ -99,6 +104,20 @@ button.tbtn.tog{background:rgba(26,32,41,.88);border-color:var(--border)}
 
 <header class="top">
   <button id="gear" class="gear" type="button" aria-expanded="false" aria-controls="panel">⚙ Settings</button>
+  <div class="tb" id="tb" role="toolbar" aria-label="Drawing tools">
+    <button class="tbtn on" data-tool="cursor" type="button" title="Cursor: pan, select and move drawings" aria-label="Cursor: pan, select and move drawings"><svg viewBox="0 0 24 24"><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/></svg></button>
+    <button class="tbtn" data-tool="measure" type="button" title="Measure: points, % and time between two points (desktop: Shift+drag)" aria-label="Measure: points, % and time between two points (desktop: Shift+drag)"><svg viewBox="0 0 24 24"><path d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4M5 12h3M16 12h3"/></svg></button>
+    <div class="tsep"></div>
+    <button class="tbtn" data-tool="trend" type="button" title="Trend line" aria-label="Trend line"><svg viewBox="0 0 24 24"><path d="M4 19L20 5"/><circle cx="4" cy="19" r="1.6"/><circle cx="20" cy="5" r="1.6"/></svg></button>
+    <button class="tbtn" data-tool="hline" type="button" title="Horizontal line" aria-label="Horizontal line"><svg viewBox="0 0 24 24"><path d="M3 12h18"/><circle cx="12" cy="12" r="1.6"/></svg></button>
+    <button class="tbtn" data-tool="vline" type="button" title="Vertical line" aria-label="Vertical line"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><circle cx="12" cy="12" r="1.6"/></svg></button>
+    <button class="tbtn" data-tool="rect" type="button" title="Rectangle" aria-label="Rectangle"><svg viewBox="0 0 24 24"><rect x="5" y="7" width="14" height="10" rx="1"/></svg></button>
+    <button class="tbtn" data-tool="fib" type="button" title="Fib retracement" aria-label="Fib retracement"><svg viewBox="0 0 24 24"><path d="M4 5h16M4 10h16M4 15h16M4 20h16" opacity=".7"/><path d="M6 20L18 5"/></svg></button>
+    <div class="tsep"></div>
+    <button class="tbtn" data-act="magnet" type="button" title="Magnet: snap to candle open/high/low/close" aria-label="Magnet: snap to candle open/high/low/close"><svg viewBox="0 0 24 24"><path d="M6 3v8a6 6 0 0012 0V3M6 7h4M14 7h4"/></svg></button>
+    <button class="tbtn" data-act="color" type="button" title="Colour (applies to new or selected drawing)" aria-label="Colour (applies to new or selected drawing)"><span class="cdot" id="tbDot"></span></button>
+    <button class="tbtn" data-act="del" type="button" title="Delete selected drawing (or all if none selected)" aria-label="Delete selected drawing (or all if none selected)"><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/></svg></button>
+  </div>
   <div class="live" id="live" title="Live connection status">
     <span class="dot" id="dot"></span><span id="state">–</span><span class="px" id="px"></span><span class="chg" id="chg"></span>
   </div>
@@ -114,24 +133,6 @@ button.tbtn.tog{background:rgba(26,32,41,.88);border-color:var(--border)}
     <button class="ghost" id="zin" type="button" title="Zoom in">+</button>
     <button class="ghost" id="zout" type="button" title="Zoom out">−</button>
     <button class="ghost" id="zreset" type="button" title="Reset view">⟲</button>
-  </div>
-
-  <div class="tb" id="tb">
-      <button class="tbtn tog" id="tbToggle" type="button" title="Drawing tools" aria-label="Drawing tools"><svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 7l3 3"/></svg></button>
-    <div class="tbody" id="tbBody">
-      <button class="tbtn on" data-tool="cursor" type="button" title="Cursor: pan, select and move drawings" aria-label="Cursor: pan, select and move drawings"><svg viewBox="0 0 24 24"><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/></svg></button>
-      <button class="tbtn" data-tool="measure" type="button" title="Measure: points, % and time between two points (desktop: Shift+drag)" aria-label="Measure: points, % and time between two points (desktop: Shift+drag)"><svg viewBox="0 0 24 24"><path d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4M5 12h3M16 12h3"/></svg></button>
-      <div class="tsep"></div>
-      <button class="tbtn" data-tool="trend" type="button" title="Trend line" aria-label="Trend line"><svg viewBox="0 0 24 24"><path d="M4 19L20 5"/><circle cx="4" cy="19" r="1.6"/><circle cx="20" cy="5" r="1.6"/></svg></button>
-      <button class="tbtn" data-tool="hline" type="button" title="Horizontal line" aria-label="Horizontal line"><svg viewBox="0 0 24 24"><path d="M3 12h18"/><circle cx="12" cy="12" r="1.6"/></svg></button>
-      <button class="tbtn" data-tool="vline" type="button" title="Vertical line" aria-label="Vertical line"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><circle cx="12" cy="12" r="1.6"/></svg></button>
-      <button class="tbtn" data-tool="rect" type="button" title="Rectangle" aria-label="Rectangle"><svg viewBox="0 0 24 24"><rect x="5" y="7" width="14" height="10" rx="1"/></svg></button>
-      <button class="tbtn" data-tool="fib" type="button" title="Fib retracement" aria-label="Fib retracement"><svg viewBox="0 0 24 24"><path d="M4 5h16M4 10h16M4 15h16M4 20h16" opacity=".7"/><path d="M6 20L18 5"/></svg></button>
-      <div class="tsep"></div>
-      <button class="tbtn" data-act="magnet" type="button" title="Magnet: snap to candle open/high/low/close" aria-label="Magnet: snap to candle open/high/low/close"><svg viewBox="0 0 24 24"><path d="M6 3v8a6 6 0 0012 0V3M6 7h4M14 7h4"/></svg></button>
-      <button class="tbtn" data-act="color" type="button" title="Colour (applies to new or selected drawing)" aria-label="Colour (applies to new or selected drawing)"><span class="dot" id="tbDot"></span></button>
-      <button class="tbtn" data-act="del" type="button" title="Delete selected drawing (or all if none selected)" aria-label="Delete selected drawing (or all if none selected)"><svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"/></svg></button>
-    </div>
   </div>
 
   <section class="panel" id="panel" hidden aria-label="Settings">
@@ -195,7 +196,6 @@ button.tbtn.tog{background:rgba(26,32,41,.88);border-color:var(--border)}
       <label class="chk"><input id="hiSrc" type="checkbox" checked>Shade anchor candle period</label>
       <label class="chk"><input id="pins" type="checkbox" checked>Mark pin bars</label>
       <label class="chk"><input id="showRatio" type="checkbox" checked>Gold/Silver ratio (sub-window)</label>
-      <label class="chk"><input id="showTools" type="checkbox" checked>Drawing &amp; measure toolbar</label>
     </div>
 
     <h3>Gold / Silver ratio (sub-window)</h3>
@@ -991,7 +991,7 @@ function drawDrawings(ctx,st,th,lay){
     const l2=ms.nbars.toLocaleString('en-US')+' bars, '+fmtDuration(ms.ms);
     ctx.font='bold 12px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
     const w=Math.max(ctx.measureText(l1).width,ctx.measureText(l2).width)+16,h=38;
-    let bx=Math.max(L+2,Math.min(R-w-2-(dw.padR||0),xm-w/2)),by=ms.up?Math.min(y1,y2)-h-8:Math.max(y1,y2)+8;
+    let bx=Math.max(L+2,Math.min(R-w-2,xm-w/2)),by=ms.up?Math.min(y1,y2)-h-8:Math.max(y1,y2)+8;
     by=Math.max(T+2,Math.min(B-h-2,by));
     ctx.fillStyle=c;ctx.globalAlpha=0.94;ctx.beginPath();
     if(ctx.roundRect)ctx.roundRect(bx,by,w,h,6);else ctx.rect(bx,by,w,h);ctx.fill();ctx.globalAlpha=1;
@@ -1075,11 +1075,10 @@ function ratioPaneH(){
 function draw(){
   raf=0;if(!theme)readTheme();
   dwEnsure();
-  const subH=ratioPaneH(),st={dw:{list:S.dw,pending:S.pending,measure:S.measure,selected:S.selected,hint:dwHint(),padR:($('tb').hidden||$('tb').classList.contains('collapsed'))?0:66},bars:S.bars,tfMs:S.tfMs,title:S.title,view:S.view,anchor:S.anchor,prof:S.prof,pins:S.pins,
+  const subH=ratioPaneH(),st={dw:{list:S.dw,pending:S.pending,measure:S.measure,selected:S.selected,hint:dwHint()},bars:S.bars,tfMs:S.tfMs,title:S.title,view:S.view,anchor:S.anchor,prof:S.prof,pins:S.pins,
     hover:S.hover,dec:S.dec,opts:S.opts||opts(),anchorLabel:S.anchorLabel,ratio:S.ratio};
   S.layout=drawChart(ctx,W,H-subH,st,theme);
   drawDrawings(ctx,st,theme,S.layout);
-  $('tbBody').style.maxHeight=Math.max(120,H-subH-46-70)+'px';
   if(subH)drawRatioPane(ctx,W,H-subH,subH,st,theme,S.layout);
   zoomEl.style.bottom=(subH+(W<520?26:28))+'px';      // keep the zoom buttons on the price chart
 }
@@ -1565,18 +1564,6 @@ document.querySelector('#tb [data-act="color"]').addEventListener('click',()=>{
 });
 document.querySelector('#tb [data-act="del"]').addEventListener('click',deleteSelected);
 $('tbDot').style.background=S.color;
-function tbApply(){
-  let v={show:true,open:innerWidth>=520};try{Object.assign(v,JSON.parse(localStorage.getItem('vp.tb')||'{}'));}catch(e){}
-  $('tb').hidden=!v.show;$('showTools').checked=!!v.show;$('tb').classList.toggle('collapsed',!v.open);
-  tbApply.v=v;
-}
-function tbSave(){try{localStorage.setItem('vp.tb',JSON.stringify(tbApply.v));}catch(e){}}
-$('tbToggle').addEventListener('click',()=>{tbApply.v.open=!tbApply.v.open;$('tb').classList.toggle('collapsed',!tbApply.v.open);tbSave();});
-$('showTools').addEventListener('change',()=>{
-  tbApply.v.show=$('showTools').checked;$('tb').hidden=!tbApply.v.show;
-  if(!tbApply.v.show){setTool('cursor');}tbSave();
-});
-tbApply();
 document.addEventListener('keydown',e=>{
   const t=e.target&&e.target.tagName;if(t==='INPUT'||t==='SELECT'||t==='TEXTAREA')return;
   if(e.key==='Escape'){S.measure=null;setTool('cursor');}
