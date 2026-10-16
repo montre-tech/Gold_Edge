@@ -1182,8 +1182,13 @@ function resize(){
 }
 function resetView(){
   const PW=W-axisW(W),o=S.opts||opts();
-  S.view.barW=W<520?4:clamp(PW/140,3,14);
-  S.view.start=S.bars.length-PW/S.view.barW+o.widthBars+6;
+  let bw=W<520?4:clamp(PW/140,3,14),extra=o.widthBars+6;
+  if(o.count>1&&S.periods&&S.periods.length){          // several periods: zoom out so all of them are on screen
+    const span=S.bars.length-S.periods[S.periods.length-1].A.i0+6;
+    bw=clamp(PW/span,1.2,bw);extra=6;
+  }
+  S.view.barW=bw;
+  S.view.start=S.bars.length-PW/bw+extra;
   schedule();
 }
 function clampStart(s){const pwBars=(W-axisW(W))/S.view.barW;return clamp(s,-pwBars*0.5,S.bars.length+20);}
@@ -1358,7 +1363,7 @@ async function fetchLatest(inst,tfKey){
 // How far back to load so the previous anchor candle (plus context) is fully covered.
 function neededStart(tfMs,o){
   const now=Date.now(),cur=anchorStartOf(now,o.anchor,o.offH),n=o.count||1;
-  const steps=n+(o.anchor==='1d'?Math.ceil(n/5)*2:0);          // daily periods: leave room for weekends
+  const steps=n>1?n+(o.anchor==='1d'?Math.ceil(n/5)*2:0):1;  // several daily periods: leave room for weekends (1 period: unchanged)
   let prev=cur;for(let i=0;i<steps;i++)prev=anchorStartOf(prev-1,o.anchor,o.offH);
   const want=Math.min(prev,now-300*tfMs)-tfMs*2,maxBars=15000;
   return{start:Math.max(want,now-maxBars*tfMs),capped:(now-want)/tfMs>maxBars};
