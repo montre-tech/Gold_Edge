@@ -36,6 +36,8 @@ button.ghost{color:var(--text);background:var(--field);border:1px solid var(--bo
 /* ---- slim top bar: settings button + live status. This is all that stays on screen besides the chart. ---- */
 .top{display:flex;align-items:center;gap:8px;padding:3px 8px;min-height:34px;background:var(--panel);border-bottom:1px solid var(--border)}
 .gear{padding:4px 10px;font-size:13px;white-space:nowrap}
+.tfsel{width:auto;flex:none;height:28px;padding:2px 6px;font-size:13px;font-weight:600;color:var(--text);background:var(--field);border:1px solid var(--border);border-radius:6px}
+.tfsel:disabled{opacity:.45}
 .live{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);white-space:nowrap;min-width:0}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--boundary);flex:none}
 .dot.live{background:var(--up);box-shadow:0 0 6px var(--up)}
@@ -105,6 +107,11 @@ button.tbtn.on{background:var(--accent);color:#fff}
 
 <header class="top">
   <button id="gear" class="gear" type="button" aria-expanded="false" aria-controls="panel">⚙ Settings</button>
+  <select id="tf" class="tfsel" title="Chart timeframe" aria-label="Chart timeframe">
+    <option value="1m">1m</option><option value="5m">5m</option>
+    <option value="15m" selected>15m</option><option value="30m">30m</option>
+    <option value="1h">1h</option><option value="4h">4h</option>
+  </select>
   <div class="tb" id="tb" role="toolbar" aria-label="Drawing tools">
     <button class="tbtn on" data-tool="cursor" type="button" title="Cursor: pan, select and move drawings" aria-label="Cursor: pan, select and move drawings"><svg viewBox="0 0 24 24"><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/></svg></button>
     <button class="tbtn" data-tool="measure" type="button" title="Measure: points, % and time between two points (desktop: Shift+drag)" aria-label="Measure: points, % and time between two points (desktop: Shift+drag)"><svg viewBox="0 0 24 24"><path d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4M5 12h3M16 12h3"/></svg></button>
@@ -158,14 +165,7 @@ button.tbtn.on{background:var(--accent);color:#fff}
         </span>
       </label>
       <label id="fileWrap" class="wide" hidden>CSV file<input id="file" type="file" accept=".csv,.txt,.tsv"></label>
-      <label>Chart timeframe
-        <select id="tf">
-          <option value="1m">1m</option><option value="5m">5m</option>
-          <option value="15m" selected>15m</option><option value="30m">30m</option>
-          <option value="1h">1h</option><option value="4h">4h</option>
-        </select>
-      </label>
-      <label class="btnwrap"><button id="load" type="button">Reload data</button></label>
+      <label class="btnwrap wide"><button id="load" type="button">Reload data</button></label>
     </div>
 
     <h3>Indicator</h3>
