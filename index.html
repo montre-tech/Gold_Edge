@@ -143,7 +143,9 @@ button.tbtn.on{background:var(--accent);color:#fff}
 
     <h3>Market</h3>
     <div class="fields">
+      <label class="wide">Search instrument<input id="instSearch" type="search" placeholder="Search: gold, nasdaq, EURJPY, bitcoin…" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
       <label class="wide">Instrument<select id="inst"></select></label>
+      <p class="note wide" id="instCount" style="margin:-2px 0 4px"></p>
       <label id="custWrap" class="wide" hidden>Custom symbol
         <span class="row">
           <select id="cVenue">
@@ -217,7 +219,7 @@ button.tbtn.on{background:var(--accent);color:#fff}
       <label>Low percentile<input id="rLowPct" type="number" value="10" step="1" min="0" max="100" inputmode="decimal"></label>
       <label>High percentile<input id="rHighPct" type="number" value="90" step="1" min="0" max="100" inputmode="decimal"></label>
       <label>Draw percentile lines this many bars back (0 = all)<input id="rDrawBars" type="number" value="50" step="1" min="0" inputmode="numeric"></label>
-      <label>MA period (bars)<input id="rMAPeriod" type="number" value="50" step="1" min="2" inputmode="numeric"></label>
+      <label>MA period (bars)<input id="rMAPeriod" type="number" value="100" step="1" min="2" inputmode="numeric"></label>
       <label>Custom history window (days, when auto is off)<input id="rLbDays" type="number" value="365" step="1" min="1" inputmode="numeric"></label>
     </div>
     <div class="checks" style="margin-top:10px">
@@ -1118,16 +1120,65 @@ let W=800,H=500,raf=0,drag=null,theme=null;
 
 // ---- instrument dropdown ----
 const sel=$('inst');
+const BQ_TYPES=[['Commodity','Commodities'],['Forex','Forex'],['Crypto','Crypto'],['Index','Indices'],['Stock','Stocks']];
+let instFilter='';
 function addGroup(label,items){
+  if(!items.length)return;
   const g=document.createElement('optgroup');g.label=label;
   for(const it of items){const o=document.createElement('option');o.value=it.id;o.textContent=it.label;g.appendChild(o);}
   sel.appendChild(g);
 }
-addGroup('Favorites',INSTRUMENTS.filter(i=>i.fav));
-addGroup('Biquote · broker feed',INSTRUMENTS.filter(i=>i.grp==='bq'));
-addGroup('More markets',INSTRUMENTS.filter(i=>!i.fav&&i.grp!=='bq'));
-addGroup('Other',[{id:'custom',label:'Custom symbol…'},{id:'csv',label:'CSV file (MT4/MT5 export)…'},{id:'demo',label:'Demo data (synthetic)'}]);
-sel.value='bq_xau';
+// Builds the dropdown. With a search text only matching instruments (plus the one currently selected) are listed.
+function buildInstMenu(){
+  const cur=sel.value||'bq_xau',q=instFilter.trim().toLowerCase();
+  const keep=it=>!q||(it.label+' '+(it.sym||'')).toLowerCase().includes(q)||it.id===cur;
+  const cat=INSTRUMENTS.filter(i=>i.grp==='bqcat');
+  sel.innerHTML='';
+  addGroup('Favorites',INSTRUMENTS.filter(i=>i.fav&&keep(i)));
+  addGroup('Biquote · broker feed',INSTRUMENTS.filter(i=>i.grp==='bq'&&keep(i)));
+  for(const[t,lab]of BQ_TYPES)addGroup('Biquote · '+lab,cat.filter(i=>i.type===t&&keep(i)));
+  addGroup('Biquote · other',cat.filter(i=>!BQ_TYPES.some(x=>x[0]===i.type)&&keep(i)));
+  addGroup('More markets',INSTRUMENTS.filter(i=>!i.fav&&i.grp!=='bq'&&i.grp!=='bqcat'&&keep(i)));
+  addGroup('Other',[{id:'custom',label:'Custom symbol…'},{id:'csv',label:'CSV file (MT4/MT5 export)…'},{id:'demo',label:'Demo data (synthetic)'}]);
+  sel.value=cur;
+  const n=INSTRUMENTS.filter(i=>(i.grp==='bq'||i.grp==='bqcat')&&(!q||keep(i))).length;
+  $('instCount').textContent=q?n+' Biquote instrument'+(n===1?'':'s')+' match':(BQ.status||'');
+}
+// All Biquote instruments: fetched live (only symbols quoted in the last 7 days), cached for 12 h.
+const BQ={status:'',loaded:false};
+async function loadBiquoteCatalog(){
+  const KEY='vp.bqcat';let list=null,stale=null;
+  try{const c=JSON.parse(localStorage.getItem(KEY)||'null');if(c&&Array.isArray(c.list)){stale=c.list;if(Date.now()-c.t<12*3600e3)list=c.list;}}catch(e){}
+  if(!list){
+    try{
+      const r=await fetch(VENUES.biquote.rest[0]+'/api/symbols?quotedWithinDays=7',{cache:'no-store'});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const j=await r.json(),arr=Array.isArray(j)?j:(j.symbols||j.items||[]);
+      list=arr.map(x=>({name:String(x.name||x.symbol||'').trim(),description:String(x.description||'').trim(),type:String(x.type||'')})).filter(x=>x.name);
+      if(list.length)try{localStorage.setItem(KEY,JSON.stringify({t:Date.now(),list}));}catch(e){}
+    }catch(e){list=stale;}
+  }
+  if(!list||!list.length){BQ.status='Biquote symbol list unavailable: showing the built-in instruments.';buildInstMenu();return;}
+  for(let k=INSTRUMENTS.length-1;k>=0;k--)if(INSTRUMENTS[k].grp==='bqcat')INSTRUMENTS.splice(k,1);
+  const have=new Set(INSTRUMENTS.filter(i=>i.venue==='biquote').map(i=>i.sym)),seen=new Set();
+  list.sort((a,b)=>a.name.localeCompare(b.name));
+  for(const x of list){
+    if(have.has(x.name)||seen.has(x.name))continue;seen.add(x.name);
+    INSTRUMENTS.push({id:'bq:'+x.name,grp:'bqcat',type:x.type,name:x.description||x.name,
+      label:(x.description&&x.description!==x.name?x.description+' · ':'')+x.name+' (Biquote)',venue:'biquote',sym:x.name});
+  }
+  BQ.loaded=true;BQ.status=(seen.size+have.size)+' Biquote instruments available (live list, tick volume).';
+  buildInstMenu();
+}
+buildInstMenu();
+$('instSearch').addEventListener('input',()=>{instFilter=$('instSearch').value;buildInstMenu();});
+$('instSearch').addEventListener('keydown',e=>{        // Enter: open the best match
+  if(e.key!=='Enter')return;e.preventDefault();
+  const q=$('instSearch').value.trim().toLowerCase();if(!q)return;
+  const pool=INSTRUMENTS.filter(i=>(i.label+' '+(i.sym||'')).toLowerCase().includes(q));
+  const hit=pool.find(i=>(i.sym||'').toLowerCase()===q)||pool[0];
+  if(hit){sel.value=hit.id;sel.dispatchEvent(new Event('change'));}
+});
 
 function currentInstrument(){
   const id=sel.value;
@@ -1135,6 +1186,7 @@ function currentInstrument(){
   if(id==='csv'||id==='demo')return{id,name:id==='csv'?'CSV':'Demo'};
   return INSTRUMENTS.find(i=>i.id===id);
 }
+setTimeout(loadBiquoteCatalog,0);
 function syncInst(){
   const id=sel.value;
   $('custWrap').hidden=id!=='custom';$('fileWrap').hidden=id!=='csv';$('tf').disabled=id==='csv';
