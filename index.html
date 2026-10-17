@@ -201,10 +201,19 @@ button.tbtn.on{background:var(--accent);color:#fff}
       <label class="chk"><input id="extend" type="checkbox" checked>Extend lines across chart</label>
       <label class="chk"><input id="hiSrc" type="checkbox" checked>Shade anchor candle period</label>
       <label class="chk"><input id="pins" type="checkbox" checked>Mark pin bars</label>
-      <label class="chk"><input id="showRatio" type="checkbox" checked>Gold/Silver ratio (sub-window)</label>
+      <label class="chk"><input id="showRatio" type="checkbox" checked>Ratio sub-window (default Gold/Silver)</label>
     </div>
 
-    <h3>Gold / Silver ratio (sub-window)</h3>
+    <h3>Ratio (sub-window)</h3>
+    <div class="fields">
+      <label>Upper symbol (numerator)<input id="rNum" type="text" list="bqSyms" value="XAUUSD" autocomplete="off" autocapitalize="characters" spellcheck="false" onfocus="this.select()"></label>
+      <label>Lower symbol (denominator)<input id="rDen" type="text" list="bqSyms" value="XAGUSD" autocomplete="off" autocapitalize="characters" spellcheck="false" onfocus="this.select()"></label>
+      <label class="btnwrap"><button id="rSwap" type="button" class="ghost">⇄ Swap</button></label>
+      <label class="btnwrap"><button id="rDefault" type="button" class="ghost">Gold / Silver</button></label>
+    </div>
+    <datalist id="bqSyms"></datalist>
+    <p class="note" id="rPairNote" style="margin:6px 0"></p>
+    <p class="note" style="margin:0 0 8px">Type any Biquote symbol (suggestions appear as you type). Fixed tiers 68–90 suit Gold/Silver only: other pairs switch to adaptive percentiles automatically, and you can change that below.</p>
     <div class="fields">
       <label>Line colouring
         <select id="rMode">
@@ -212,14 +221,14 @@ button.tbtn.on{background:var(--accent);color:#fff}
           <option value="pct">Adaptive percentiles</option>
         </select>
       </label>
-      <label>Tier level 1 (below = lime)<input id="rL1" type="number" value="68" step="0.5" inputmode="decimal"></label>
-      <label>Tier level 2<input id="rL2" type="number" value="70" step="0.5" inputmode="decimal"></label>
-      <label>Tier level 3 (above = orange)<input id="rL3" type="number" value="80" step="0.5" inputmode="decimal"></label>
-      <label>Tier level 4 (above = red)<input id="rL4" type="number" value="90" step="0.5" inputmode="decimal"></label>
+      <label>Tier level 1 (below = lime)<input id="rL1" type="number" value="68" step="any" inputmode="decimal"></label>
+      <label>Tier level 2<input id="rL2" type="number" value="70" step="any" inputmode="decimal"></label>
+      <label>Tier level 3 (above = orange)<input id="rL3" type="number" value="80" step="any" inputmode="decimal"></label>
+      <label>Tier level 4 (above = red)<input id="rL4" type="number" value="90" step="any" inputmode="decimal"></label>
       <label>Low percentile<input id="rLowPct" type="number" value="10" step="1" min="0" max="100" inputmode="decimal"></label>
       <label>High percentile<input id="rHighPct" type="number" value="90" step="1" min="0" max="100" inputmode="decimal"></label>
       <label>Draw percentile lines this many bars back (0 = all)<input id="rDrawBars" type="number" value="50" step="1" min="0" inputmode="numeric"></label>
-      <label>MA period (bars)<input id="rMAPeriod" type="number" value="50" step="1" min="2" inputmode="numeric"></label>
+      <label>MA period (bars)<input id="rMAPeriod" type="number" value="100" step="1" min="2" inputmode="numeric"></label>
       <label>Custom history window (days, when auto is off)<input id="rLbDays" type="number" value="365" step="1" min="1" inputmode="numeric"></label>
     </div>
     <div class="checks" style="margin-top:10px">
@@ -232,14 +241,7 @@ button.tbtn.on{background:var(--accent);color:#fff}
     <h3>Current levels</h3>
     <section class="info" id="info" aria-live="polite"></section>
 
-    <h3>Install on phone</h3>
-    <div class="fields">
-      <button id="installBtn" type="button" style="display:none">Install app</button>
-      <button id="diagBtn" type="button">Check install requirements</button>
-    </div>
-    <pre id="pwaDiag" style="white-space:pre-wrap;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;margin:8px 0 0;opacity:.9"></pre>
-
-    <p class="note">Binance/Bybit prices come from exchange perpetual/spot feeds (USDT-quoted), so levels can differ slightly from MT4/MT5. Biquote instruments use an MT5 broker feed (closer to MT4/MT5), but their volume is tick volume (ticks per bar), the same as MT5 shows for forex/CFDs, and history is limited to roughly 2,000 bars per timeframe. The Gold/Silver ratio always uses Biquote XAUUSD and XAGUSD on the chart's timeframe (whatever instrument is on the chart), so its percentile window is limited by Biquote's history (about 2,000 bars). Times in UTC. Educational tool, not financial advice. Tip: on a phone, use your browser's "Add to Home Screen" to open this full-screen.</p>
+    <p class="note">Binance/Bybit prices come from exchange perpetual/spot feeds (USDT-quoted), so levels can differ slightly from MT4/MT5. Biquote instruments use an MT5 broker feed (closer to MT4/MT5), but their volume is tick volume (ticks per bar), the same as MT5 shows for forex/CFDs, and history is limited to roughly 2,000 bars per timeframe. The ratio pane always uses two Biquote symbols (default XAUUSD / XAGUSD) on the chart's timeframe, whatever instrument is on the chart, so its percentile window is limited by Biquote's history (about 2,000 bars). Times in UTC. Educational tool, not financial advice.</p>
   </section>
 </main>
 
@@ -490,16 +492,18 @@ function calcRatio(R,o,tfMs,cache){
   for(let i=0;i<n;i++)col[i]=ratioZone(v[i],o,i>=winStart,pHigh,pLow);
   return{ma,col,pLow,pHigh,winStart,key,n,needPct};
 }
-function ratioStateText(s,r,o,c){
-  const v=r.toFixed(2);
+const ratioDec=v=>{const a=Math.abs(v);return a>=10?2:a>=1?3:a>=0.1?4:a>=0.01?5:6;};   // enough digits for any pair
+function ratioStateText(s,r,o,c,dec,nm){
+  dec=dec==null?2:dec;nm=nm||'Gold/Silver ratio';
+  const v=r.toFixed(dec),Lv=x=>dec>2?x.toFixed(dec):x.toFixed(1),Pv=x=>x.toFixed(dec);
   if(o.mode==='levels'){
-    if(s===2)return'Gold/Silver ratio '+v+' is above '+o.l4.toFixed(1);
-    if(s===1)return'Gold/Silver ratio '+v+' is above '+o.l3.toFixed(1);
-    if(s===3)return'Gold/Silver ratio '+v+' is below '+o.l1.toFixed(1);
-    if(s===4)return'Gold/Silver ratio '+v+' is between '+o.l1.toFixed(1)+' and '+o.l2.toFixed(1);
+    if(s===2)return nm+' '+v+' is above '+Lv(o.l4);
+    if(s===1)return nm+' '+v+' is above '+Lv(o.l3);
+    if(s===3)return nm+' '+v+' is below '+Lv(o.l1);
+    if(s===4)return nm+' '+v+' is between '+Lv(o.l1)+' and '+Lv(o.l2);
   }else{
-    if(s===2&&c.pHigh!=null)return'Gold/Silver ratio '+v+' is above its P'+o.highPct.toFixed(0)+' ('+c.pHigh.toFixed(2)+')';
-    if(s===3&&c.pLow!=null)return'Gold/Silver ratio '+v+' is below its P'+o.lowPct.toFixed(0)+' ('+c.pLow.toFixed(2)+')';
+    if(s===2&&c.pHigh!=null)return nm+' '+v+' is above its P'+o.highPct.toFixed(0)+' ('+Pv(c.pHigh)+')';
+    if(s===3&&c.pLow!=null)return nm+' '+v+' is below its P'+o.lowPct.toFixed(0)+' ('+Pv(c.pLow)+')';
   }
   return'';
 }
@@ -650,13 +654,17 @@ function drawChart(ctx,W,H,st,th){
   }
   // vertical grid + time labels
   const raw=Math.ceil((W<520?84:110)/bw);let step=NICE_STEPS.find(s=>s>=raw)||raw;
-  const timeLabels=[];
+  const timeLabels=[],longStep=step*st.tfMs>=6*HOUR;      // zoomed far out: labels are hours apart, so show the date too
+  let prevDay=null;
   for(let i=Math.max(0,Math.floor(s0));i<=i1;i++){
     if(i%step!==0)continue;
     const x=Math.round(xi(i))+0.5;ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,B);ctx.stroke();
     const t=bars[i].t,dd=new Date(t);
     const midnight=dd.getUTCHours()===0&&dd.getUTCMinutes()===0;
-    timeLabels.push({x,txt:(st.tfMs>=DAY||midnight)?fmtDate(t):fmtHM(t)});
+    const dayKey=dd.getUTCFullYear()*400+dd.getUTCMonth()*32+dd.getUTCDate();
+    const txt=(st.tfMs>=DAY||midnight)?fmtDate(t):(longStep&&dayKey!==prevDay)?fmtDate(t)+' '+fmtHM(t):fmtHM(t);
+    prevDay=dayKey;
+    timeLabels.push({x,txt});
   }
 
   // shade the anchor candle's period
@@ -882,8 +890,8 @@ function drawRatioPane(ctx,W,y0,h,st,th,lay){
   ctx.font=FONT;ctx.textBaseline='middle';
   const RS=st.ratio,bars=st.bars;
   const note=txt=>{ctx.fillStyle=th.muted;ctx.textAlign='center';ctx.fillText(txt,(L+R)/2,(T+B)/2);ctx.restore();};
-  if(!RS||!RS.R||!RS.calc||!bars.length)return note((RS&&RS.msg)||'Gold/Silver ratio');
-  const RR=RS.R,C=RS.calc,o=RS.o,bw=st.view.barW,s0=st.view.start,nR=RR.t.length;
+  if(!RS||!RS.R||!RS.calc||!bars.length)return note((RS&&RS.msg)||'Ratio');
+  const RR=RS.R,C=RS.calc,o=RS.o,bw=st.view.barW,s0=st.view.start,nR=RR.t.length,dec=RS.dec==null?2:RS.dec,fx=v=>v.toFixed(dec);
   const xi=i=>L+(i-s0)*bw+bw/2;
   const i0=Math.max(0,Math.floor(s0)-1),i1=Math.min(bars.length-1,Math.ceil(s0+PW/bw)+1);
 
@@ -932,7 +940,7 @@ function drawRatioPane(ctx,W,y0,h,st,th,lay){
       const y=Math.round(yp(val))+0.5;
       ctx.strokeStyle=RATIO_COL[ci];ctx.globalAlpha=0.75;ctx.lineWidth=1;ctx.setLineDash([5,4]);
       ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(R,y);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
-      ctx.fillStyle=RATIO_COL[ci];ctx.textAlign='left';ctx.fillText(val.toFixed(1),L+6,y-7);
+      ctx.fillStyle=RATIO_COL[ci];ctx.textAlign='left';ctx.fillText(dec>2?fx(val):val.toFixed(1),L+6,y-7);
     }
   }
   // adaptive percentile lines: only the last `drawBars` bars, as in the MT5 indicator
@@ -978,9 +986,9 @@ function drawRatioPane(ctx,W,y0,h,st,th,lay){
   ctx.fillStyle=th.bg;ctx.fillRect(R,y0+1,AXIS_W,h-1);
   ctx.strokeStyle=th.grid;ctx.beginPath();ctx.moveTo(R+0.5,y0);ctx.lineTo(R+0.5,y0+h);ctx.stroke();
   ctx.fillStyle=th.muted;ctx.textAlign='left';
-  for(const v of gl){const y=yp(v);if(y>T+6&&y<B-6)ctx.fillText(v.toFixed(2),R+6,y);}
+  for(const v of gl){const y=yp(v);if(y>T+6&&y<B-6)ctx.fillText(fx(v),R+6,y);}
   const tag=(v,c)=>{const y=yp(v);if(y<T||y>B)return;ctx.fillStyle=c;ctx.fillRect(R,y-8,AXIS_W,16);
-    ctx.fillStyle=th.tagText||'#0b0f14';ctx.textAlign='left';ctx.fillText(v.toFixed(2),R+6,y);};
+    ctx.fillStyle=th.tagText||'#0b0f14';ctx.textAlign='left';ctx.fillText(fx(v),R+6,y);};
   for(const q of tags)tag(q.v,q.c);
   const lastV=RR.v[nR-1],lastC=RATIO_COL[C.col[nR-1]];
   tag(lastV,lastC);
@@ -992,13 +1000,13 @@ function drawRatioPane(ctx,W,y0,h,st,th,lay){
   const sv=hp?hp.v:lastV,sc=hp?RATIO_COL[hp.c]:lastC,sm=hp?hp.m:C.ma[nR-1];
   const LEG='bold 12px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
   const parts=[
-    {f:LEG,c:th.text,t:'Gold/Silver Ratio ('+RS.gold+'/'+RS.silver+')'},
-    {f:LEG,c:sc,t:sv.toFixed(2)}
+    {f:LEG,c:th.text,t:RS.title||'Ratio'},
+    {f:LEG,c:sc,t:fx(sv)}
   ];
-  if(o.showMA&&Number.isFinite(sm))parts.push({f:FONT,c:'#ffd700',t:'MA('+o.maPeriod+') '+sm.toFixed(2)});
+  if(o.showMA&&Number.isFinite(sm))parts.push({f:FONT,c:'#ffd700',t:'MA('+o.maPeriod+') '+fx(sm)});
   if(C.needPct&&C.pHigh!=null&&C.pLow!=null){
-    parts.push({f:FONT,c:'#ff00ff',t:'P'+o.highPct.toFixed(0)+' '+C.pHigh.toFixed(2)});
-    parts.push({f:FONT,c:'#ffff00',t:'P'+o.lowPct.toFixed(0)+' '+C.pLow.toFixed(2)});
+    parts.push({f:FONT,c:'#ff00ff',t:'P'+o.highPct.toFixed(0)+' '+fx(C.pHigh)});
+    parts.push({f:FONT,c:'#ffff00',t:'P'+o.lowPct.toFixed(0)+' '+fx(C.pLow)});
   }
   let lx=8;ctx.textAlign='left';
   for(const q of parts){
@@ -1167,10 +1175,18 @@ async function loadBiquoteCatalog(){
     INSTRUMENTS.push({id:'bq:'+x.name,grp:'bqcat',type:x.type,name:x.description||x.name,
       label:(x.description&&x.description!==x.name?x.description+' · ':'')+x.name+' (Biquote)',venue:'biquote',sym:x.name});
   }
-  BQ.loaded=true;BQ.status=(seen.size+have.size)+' Biquote instruments available (live list, tick volume).';
+  fillSymList();BQ.loaded=true;BQ.status=(seen.size+have.size)+' Biquote instruments available (live list, tick volume).';
   buildInstMenu();
 }
-buildInstMenu();
+function fillSymList(){
+  const dl=$('bqSyms');dl.innerHTML='';BQ.map=new Map();
+  for(const it of INSTRUMENTS){
+    if(it.venue!=='biquote')continue;
+    BQ.map.set(it.sym.toUpperCase(),it.sym);
+    const o=document.createElement('option');o.value=it.sym;if(it.name&&it.name!==it.sym)o.label=it.name;dl.appendChild(o);
+  }
+}
+buildInstMenu();fillSymList();
 $('instSearch').addEventListener('input',()=>{instFilter=$('instSearch').value;buildInstMenu();});
 $('instSearch').addEventListener('keydown',e=>{        // Enter: open the best match
   if(e.key!=='Enter')return;e.preventDefault();
@@ -1237,14 +1253,14 @@ function resetView(){
   let bw=W<520?4:clamp(PW/140,3,14),extra=o.widthBars+6;
   if(o.count>1&&S.periods&&S.periods.length){          // several periods: zoom out so all of them are on screen
     const span=S.bars.length-S.periods[S.periods.length-1].A.i0+6;
-    bw=clamp(PW/span,1.2,bw);extra=6;
+    bw=clamp(PW/span,0.3,bw);extra=6;
   }
   S.view.barW=bw;
   S.view.start=S.bars.length-PW/bw+extra;
   schedule();
 }
 function clampStart(s){const pwBars=(W-axisW(W))/S.view.barW;return clamp(s,-pwBars*0.5,S.bars.length+20);}
-function zoomAt(f,cx){const bw=S.view.barW,nb=clamp(bw*f,1.2,60),idx=S.view.start+cx/bw;S.view.barW=nb;S.view.start=clampStart(idx-cx/nb);schedule();}
+function zoomAt(f,cx){const bw=S.view.barW,nb=clamp(bw*f,0.3,60),idx=S.view.start+cx/bw;S.view.barW=nb;S.view.start=clampStart(idx-cx/nb);schedule();}
 function lastBarVisible(){const n=S.bars.length-1,pw=(W-axisW(W))/S.view.barW;return n>=S.view.start-1&&n<=S.view.start+pw+1;}
 
 // ---- indicator rebuild ----
@@ -1358,7 +1374,7 @@ async function fetchHistory(inst,tfKey,startMs){
           if(!list.length)break;
           let oldest=Infinity;
           for(const k of list){const b=biquoteRowToBar(k);if(Number.isFinite(b.t)){out.push(b);if(b.t<oldest)oldest=b.t;}}
-          if(!Number.isFinite(oldest)||oldest>=prevOldest)break;   // no progress
+          if(!Number.isFinite(oldest)||oldest>=prevOldest||out.length>=5000)break;   // no progress, or safety cap
           prevOldest=oldest;
           if(oldest<=startMs)break;
           to=oldest-1;
@@ -1433,7 +1449,7 @@ async function load(keepView){
       bars=genDemo(tfMs,Date.now()-need.start+tfMs*20,Date.now(),7);title='DEMO · '+tfKey+' · synthetic data';
     }else{
       if(!inst.sym)throw new Error('Enter a symbol, e.g. ETHUSDT');
-      bars=await fetchHistory(inst,tfKey,need.start);
+      bars=await fetchHistory(inst,tfKey,inst.venue==='biquote'?0:need.start);   // Biquote: take everything it has (up to ~2000 bars)
       title=inst.name+' · '+inst.sym+' · '+tfKey+' · '+VENUES[inst.venue].name;
     }
     if(id!==S.loadId)return;
@@ -1460,8 +1476,42 @@ async function load(keepView){
   }
 }
 
-// ---- Gold/Silver ratio (Biquote XAUUSD / XAGUSD on the chart's timeframe) ----
-const RINST={g:{venue:'biquote',sym:'XAUUSD',name:'Gold'},s:{venue:'biquote',sym:'XAGUSD',name:'Silver'}};
+// ---- Ratio pane: any two Biquote symbols (default Gold/Silver) on the chart's timeframe ----
+const RDEF={num:'XAUUSD',den:'XAGUSD'};
+const RINST={g:{venue:'biquote',sym:RDEF.num},s:{venue:'biquote',sym:RDEF.den}};
+const isDefPair=()=>RINST.g.sym===RDEF.num&&RINST.s.sym===RDEF.den;
+const ratioTitle=()=>isDefPair()?'Gold/Silver Ratio ('+RINST.g.sym+'/'+RINST.s.sym+')':RINST.g.sym+' / '+RINST.s.sym+' Ratio';
+const ratioName=()=>isDefPair()?'Gold/Silver ratio':RINST.g.sym+'/'+RINST.s.sym+' ratio';
+function readPair(){            // normalise what was typed; use Biquote's own spelling when the symbol is known
+  const canon=u=>{const k=u.trim().toUpperCase();return(BQ.map&&BQ.map.get(k))||k;};
+  const a=canon($('rNum').value||RDEF.num),b=canon($('rDen').value||RDEF.den);
+  $('rNum').value=a;$('rDen').value=b;RINST.g.sym=a;RINST.s.sym=b;
+}
+function pairProblem(){
+  if(RINST.g.sym===RINST.s.sym)return'Choose two different symbols.';
+  if(BQ.map&&BQ.loaded)for(const q of[RINST.g.sym,RINST.s.sym])if(!BQ.map.has(q.toUpperCase()))return'"'+q+'" is not in Biquote\'s symbol list.';
+  return'';
+}
+function pairNote(){
+  const d=q=>{const it=INSTRUMENTS.find(i=>i.venue==='biquote'&&i.sym===q);return it&&it.name&&it.name!==q?it.name:q;};
+  const bad=pairProblem();
+  $('rPairNote').textContent=bad||(d(RINST.g.sym)+'  ÷  '+d(RINST.s.sym));
+  $('rPairNote').style.color=bad?'var(--warn)':'';
+}
+function pairChanged(){
+  readPair();
+  $('rMode').value=isDefPair()?'levels':'pct';                 // fixed 68-90 tiers only make sense for Gold/Silver
+  if(!pairProblem()){try{localStorage.setItem('vp.ratioPair',JSON.stringify([RINST.g.sym,RINST.s.sym]));}catch(e){}}   // never remember a typo
+  pairNote();ratioLoad();
+}
+['rNum','rDen'].forEach(id=>$(id).addEventListener('change',pairChanged));
+$('rSwap').addEventListener('click',()=>{const t=$('rNum').value;$('rNum').value=$('rDen').value;$('rDen').value=t;pairChanged();});
+$('rDefault').addEventListener('click',()=>{$('rNum').value=RDEF.num;$('rDen').value=RDEF.den;pairChanged();});
+try{                                                                // restore the last pair
+  const sv=JSON.parse(localStorage.getItem('vp.ratioPair')||'null');
+  if(Array.isArray(sv)&&sv.length===2){$('rNum').value=sv[0];$('rDen').value=sv[1];readPair();$('rMode').value=isDefPair()?'levels':'pct';}
+}catch(e){}
+pairNote();
 const RG={id:0,pollT:null,g:[],s:[],cache:null,lastState:-1};
 const ratioTf=()=>Object.keys(TF_MS).find(k=>TF_MS[k]===S.tfMs)||null;
 function ratioOpts(){
@@ -1486,33 +1536,37 @@ async function ratioLoad(){
   RG.cache=null;RG.lastState=-1;S.ratioAlert='';refreshAlert();
   if(!ro.show||!S.bars.length){S.ratio=null;schedule();return;}
   const tfKey=ratioTf();
-  if(!tfKey){S.ratio={msg:'Gold/Silver ratio needs a 1m–4h chart timeframe.'};schedule();return;}
-  S.ratio={msg:'Loading Gold/Silver ratio…'};schedule();
+  if(!tfKey){S.ratio={msg:'Ratio needs a 1m–4h chart timeframe.'};schedule();return;}
+  readPair();pairNote();
+  const bad=pairProblem();if(bad){S.ratio={msg:bad};schedule();return;}
+  S.ratio={msg:'Loading '+RINST.g.sym+' / '+RINST.s.sym+' ratio…'};schedule();
   try{
     const start=Date.now()-ratioLookbackDays(S.tfMs,ro)*DAY;
-    const[g,sv]=await Promise.all([fetchHistory(RINST.g,tfKey,start),fetchHistory(RINST.s,tfKey,start)]);
+    const tag=(pr,sym)=>pr.catch(e=>{throw new Error(sym+': '+e.message);});          // say which symbol failed
+    const[g,sv]=await Promise.all([tag(fetchHistory(RINST.g,tfKey,start),RINST.g.sym),tag(fetchHistory(RINST.s,tfKey,start),RINST.s.sym)]);
     if(id!==RG.id)return;
     RG.g=g;RG.s=sv;ratioRecalc();ratioPollCtl();
   }catch(e){
     if(id!==RG.id)return;
-    S.ratio={msg:'Gold/Silver ratio unavailable: '+e.message};schedule();
+    S.ratio={msg:'Ratio unavailable ('+e.message+')'};schedule();
   }
 }
 function ratioRecalc(){
   const ro=ratioOpts();
   if(!ro.show){S.ratio=null;schedule();return;}
-  if(!RG.g.length||!RG.s.length){S.ratio={msg:'No gold/silver data returned.'};schedule();return;}
+  if(!RG.g.length||!RG.s.length){S.ratio={msg:'No data returned for '+RINST.g.sym+' / '+RINST.s.sym+'.'};schedule();return;}
   const R=buildRatio(RG.g,RG.s);
-  if(R.t.length<2){S.ratio={msg:'Not enough gold/silver data.'};schedule();return;}
+  if(R.t.length<2){S.ratio={msg:'Not enough data for '+RINST.g.sym+' / '+RINST.s.sym+'.'};schedule();return;}
   const calc=calcRatio(R,ro,S.tfMs,RG.cache);RG.cache=calc;
-  S.ratio={R,calc,o:ro,msg:'',gold:RINST.g.sym,silver:RINST.s.sym};
+  const dec=ratioDec(R.v[R.v.length-1]);
+  S.ratio={R,calc,o:ro,msg:'',dec,title:ratioTitle()};
   // alert: fires once when the last CLOSED bar changes colour zone
   if(R.t.length>3){
     const bar=R.t.length-2,state=calc.col[bar];
     if(RG.lastState===-1)RG.lastState=state;
     else if(state!==RG.lastState){
       RG.lastState=state;
-      if(ro.alerts&&state!==0){const m=ratioStateText(state,R.v[bar],ro,calc);if(m){S.ratioAlert=m;S.dismissed='';refreshAlert();}}
+      if(ro.alerts&&state!==0){const m=ratioStateText(state,R.v[bar],ro,calc,dec,ratioName());if(m){S.ratioAlert=m;S.dismissed='';refreshAlert();}}
     }
   }
   schedule();
@@ -1772,7 +1826,7 @@ cv.addEventListener('pointermove',e=>{
   if(ptrs.has(e.pointerId))ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pinch&&ptrs.size===2){
     const[a,b]=[...ptrs.values()],d=Math.hypot(a.x-b.x,a.y-b.y)||1;
-    const nb=clamp(pinch.barW*d/pinch.d,1.2,60),idx=pinch.start+pinch.cx/pinch.barW;
+    const nb=clamp(pinch.barW*d/pinch.d,0.3,60),idx=pinch.start+pinch.cx/pinch.barW;
     S.view.barW=nb;S.view.start=clampStart(idx-pinch.cx/nb);S.hover=null;schedule();return;
   }
   S.hover={x,y};
@@ -1837,43 +1891,6 @@ window.__vp={S,Feed,RG,scrToPt,dwScr,rebuild,load,resetView,draw,applyBars,ratio
 }
 </script>
 <script>
-// PWA install helper + diagnostics (shows exactly what the browser is missing)
-let deferredInstall=null,installEvt=false;
-window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;installEvt=true;
-  const b=document.getElementById('installBtn');if(b)b.style.display='';pwaDiag();});
-window.addEventListener('appinstalled',()=>{deferredInstall=null;const b=document.getElementById('installBtn');if(b)b.style.display='none';pwaDiag();});
-document.getElementById('installBtn').addEventListener('click',async()=>{
-  if(!deferredInstall)return;deferredInstall.prompt();try{await deferredInstall.userChoice;}catch(e){}deferredInstall=null;
-  document.getElementById('installBtn').style.display='none';pwaDiag();
-});
-document.getElementById('diagBtn').addEventListener('click',pwaDiag);
-async function pwaDiag(){
-  const out=document.getElementById('pwaDiag'),L=[],ok=(c,t)=>L.push((c?'✓ ':'✗ ')+t);
-  const ua=navigator.userAgent,m=ua.match(/(Chrome|Firefox|EdgA|SamsungBrowser|OPR|Brave)\/([\d.]+)/);
-  const webview=/; wv\)|FBAN|FBAV|Instagram|Line\/|MicroMessenger|GSA\//.test(ua);
-  L.push('Address: '+location.protocol+'//'+location.host+location.pathname);
-  L.push('Browser: '+(m?m[1]+' '+m[2]:'unknown')+(webview?'  (embedded in-app browser!)':''));
-  ok(window.isSecureContext,'Secure context (HTTPS)');
-  ok(!webview,'Opened in a real browser, not inside another app');
-  ok(matchMedia('(display-mode: standalone)').matches?false:true,'Not already running as an installed app');
-  const link=document.querySelector('link[rel=manifest]');ok(!!link,'Manifest linked');
-  if(link){try{
-    const r=await fetch(link.href,{cache:'no-store'});ok(r.ok,'Manifest downloads (HTTP '+r.status+')');
-    const j=await r.json();ok(!!(j.name&&j.start_url&&j.display),'Manifest has name, start_url, display');
-    const ic=j.icons||[];ok(ic.some(i=>/192/.test(i.sizes))&&ic.some(i=>/512/.test(i.sizes)),'Icons 192 and 512 declared');
-    for(const i of ic.slice(0,2)){const ir=await fetch(new URL(i.src,link.href),{cache:'no-store'});ok(ir.ok,'Icon loads: '+(i.purpose||'any')+' '+i.sizes+' (HTTP '+ir.status+')');}
-  }catch(e){ok(false,'Manifest problem: '+e.message);}}
-  if('serviceWorker' in navigator){
-    const reg=await navigator.serviceWorker.getRegistration().catch(()=>null);
-    ok(!!reg,'Service worker registered');ok(!!(reg&&reg.active),'Service worker active');
-  }else ok(false,'Service workers supported');
-  L.push(installEvt?'✓ Browser says: installable (Install button above)':'… Browser has not offered the install prompt (yet)');
-  if(!window.isSecureContext)L.push('\n→ Open this page through an https:// address (e.g. GitHub Pages), not a file or http link.');
-  else if(webview)L.push('\n→ Open the address in Chrome/Firefox/Edge itself, not in an app\'s built-in browser.');
-  else if(!installEvt&&!matchMedia('(display-mode: standalone)').matches)L.push('\n→ Everything above is fine but the browser still withholds the prompt: that is a phone/browser limit (Google Play services, storage, or shortcut permission). Try Firefox or Edge → menu → "Add to Home screen"/"Install".');
-  out.textContent=L.join('\n');
-}
-setTimeout(pwaDiag,2500);
 // PWA: register the service worker (needs HTTPS or localhost; silently skipped on file://)
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
