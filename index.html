@@ -231,8 +231,8 @@ button.tbtn.on{background:var(--accent);color:#fff}
       <label>Low percentile<input id="rLowPct" type="number" value="10" step="1" min="0" max="100" inputmode="decimal"></label>
       <label>High percentile<input id="rHighPct" type="number" value="90" step="1" min="0" max="100" inputmode="decimal"></label>
       <label>Draw percentile lines this many bars back (0 = all)<input id="rDrawBars" type="number" value="50" step="1" min="0" inputmode="numeric"></label>
-      <label>MA period (bars)<input id="rMAPeriod" type="number" value="50" step="1" min="2" inputmode="numeric"></label>
-      <label class="chk"><input id="rAutoLb" type="checkbox" checked>Auto percentile history window (picked per timeframe)</label>
+      <label>MA period (bars)<input id="rMAPeriod" type="number" value="100" step="1" min="2" inputmode="numeric"></label>
+      <label class="chk wide"><input id="rAutoLb" type="checkbox" checked>Auto percentile history window (picked per timeframe)</label>
       <label class="wide">Percentile history window in days (used when Auto is off)<input id="rLbDays" type="number" value="365" step="1" min="1" inputmode="numeric" disabled></label>
     </div>
     <div class="checks" style="margin-top:10px">
@@ -917,6 +917,10 @@ function drawRatioPane(ctx,W,y0,h,st,th,lay){
   const ext=v=>{if(Number.isFinite(v)){if(v<lo)lo=v;if(v>hi)hi=v;}};
   for(const q of pts){ext(q.v);if(o.showMA)ext(q.m);}
   if(C.needPct){ext(C.pHigh==null?NaN:C.pHigh);ext(C.pLow==null?NaN:C.pLow);}
+  if(o.mode==='levels'){                                    // keep the fixed tiers on screen (unless they are nowhere near this pair's values)
+    const ref=pts[pts.length-1].v;
+    for(const lv of[o.l1,o.l2,o.l3,o.l4])if(Math.abs(lv-ref)<=0.35*Math.abs(ref))ext(lv);
+  }
   if(!(hi>lo)){lo-=0.5;hi+=0.5;}
   const pad=(hi-lo)*0.10;lo-=pad;hi+=pad;
   const yp=v=>T+(hi-v)/(hi-lo)*PH;
