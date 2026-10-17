@@ -203,6 +203,9 @@ button.tbtn.on{background:var(--accent);color:#fff}
       <label class="chk"><input id="pins" type="checkbox" checked>Mark pin bars</label>
       <label class="chk"><input id="showRatio" type="checkbox" checked>Ratio sub-window (default Gold/Silver)</label>
     </div>
+    <div class="fields" style="margin-top:10px">
+      <label class="wide">Bars on screen at start (0 = all loaded bars)<input id="viewBars" type="number" value="0" step="50" min="0" inputmode="numeric"></label>
+    </div>
 
     <h3>Ratio (sub-window)</h3>
     <div class="fields">
@@ -229,12 +232,12 @@ button.tbtn.on{background:var(--accent);color:#fff}
       <label>High percentile<input id="rHighPct" type="number" value="90" step="1" min="0" max="100" inputmode="decimal"></label>
       <label>Draw percentile lines this many bars back (0 = all)<input id="rDrawBars" type="number" value="50" step="1" min="0" inputmode="numeric"></label>
       <label>MA period (bars)<input id="rMAPeriod" type="number" value="100" step="1" min="2" inputmode="numeric"></label>
-      <label>Custom history window (days, when auto is off)<input id="rLbDays" type="number" value="365" step="1" min="1" inputmode="numeric"></label>
+      <label class="chk wide"><input id="rAutoLb" type="checkbox" checked>Auto percentile history window (picked per timeframe)</label>
+      <label class="wide">Percentile history window in days (used when Auto is off)<input id="rLbDays" type="number" value="365" step="1" min="1" inputmode="numeric" disabled></label>
     </div>
     <div class="checks" style="margin-top:10px">
       <label class="chk"><input id="rShowPct" type="checkbox" checked>Show adaptive percentile lines</label>
       <label class="chk"><input id="rShowMA" type="checkbox" checked>Show moving average</label>
-      <label class="chk"><input id="rAutoLb" type="checkbox" checked>Auto history window for this timeframe</label>
       <label class="chk"><input id="rAlerts" type="checkbox">Alert when a closed bar changes colour zone</label>
     </div>
 
@@ -701,7 +704,7 @@ function drawChart(ctx,W,H,st,th){
   // ---- indicator ----
   const axisTags=[];
   if(A&&P&&!multi){
-    const lab=st.anchorLabel,xL=xi(bars.length-1)+bw*1.5,maxW=o.widthBars*bw,xEnd=xL+maxW;
+    const lab=st.anchorLabel,xL=xi(bars.length-1)+bw*1.5,maxW=Math.max(o.widthBars*bw,Math.min(110,PW*0.22)),xEnd=xL+maxW;
     const pal=P.mode==='whole'?[[th.upperBase,th.upperVA]]:[[th.upperBase,th.upperVA],[th.lowerBase,th.lowerVA]];
 
     P.zones.forEach((Z,zi)=>{
@@ -1220,6 +1223,7 @@ function opts(){
     rows:clamp(Math.round(+$('rows').value)||30,5,200),vaPct:clamp(+$('va').value||70,10,100),
     widthBars:clamp(Math.round(+$('width').value)||25,5,200),
     count:clamp(Math.round(+$('count').value)||1,1,20),
+    viewBars:Math.max(0,Math.round(+$('viewBars').value)||0),
     pinRatio:Math.max(0.5,+$('pinRatio').value||2),pinBody:clamp(+$('pinBody').value||35,5,100),
     showPOC:$('showPOC').checked,showVA:$('showVA').checked,showBounds:$('showBounds').checked,
     extend:$('extend').checked,hiSrc:$('hiSrc').checked,pins:$('pins').checked,auto:$('auto').checked};
@@ -1250,17 +1254,19 @@ function resize(){
 }
 function resetView(){
   const PW=W-axisW(W),o=S.opts||opts();
-  let bw=W<520?4:clamp(PW/140,3,14),extra=o.widthBars+6;
+  // fit the requested number of bars (default: everything that was loaded) and keep room for the profile at the right edge
+  const profPx=Math.min(110,PW*0.22),N=o.viewBars>0?o.viewBars:Math.max(1,S.bars.length);
+  let bw=clamp((PW-profPx)/(N+6),0.15,14),extra=profPx/bw+6;
   if(o.count>1&&S.periods&&S.periods.length){          // several periods: zoom out so all of them are on screen
     const span=S.bars.length-S.periods[S.periods.length-1].A.i0+6;
-    bw=clamp(PW/span,0.3,bw);extra=6;
+    bw=clamp(PW/span,0.15,bw);extra=6;
   }
   S.view.barW=bw;
   S.view.start=S.bars.length-PW/bw+extra;
   schedule();
 }
 function clampStart(s){const pwBars=(W-axisW(W))/S.view.barW;return clamp(s,-pwBars*0.5,S.bars.length+20);}
-function zoomAt(f,cx){const bw=S.view.barW,nb=clamp(bw*f,0.3,60),idx=S.view.start+cx/bw;S.view.barW=nb;S.view.start=clampStart(idx-cx/nb);schedule();}
+function zoomAt(f,cx){const bw=S.view.barW,nb=clamp(bw*f,0.15,60),idx=S.view.start+cx/bw;S.view.barW=nb;S.view.start=clampStart(idx-cx/nb);schedule();}
 function lastBarVisible(){const n=S.bars.length-1,pw=(W-axisW(W))/S.view.barW;return n>=S.view.start-1&&n<=S.view.start+pw+1;}
 
 // ---- indicator rebuild ----
@@ -1680,6 +1686,7 @@ $('load').addEventListener('click',()=>load());
 $('cSym').addEventListener('keydown',e=>{if(e.key==='Enter')load();});
 $('cVenue').addEventListener('change',()=>load());
 $('tf').addEventListener('change',()=>load());
+$('viewBars').addEventListener('change',()=>{rebuild();resetView();});
 ['anchor','offset','count'].forEach(id=>$(id).addEventListener('change',()=>{if(sel.value==='csv')rebuild();else load();}));
 ['mode','rows','va','width','pinRatio','pinBody','showPOC','showVA','showBounds','extend','hiSrc','pins'].forEach(id=>
   $(id).addEventListener('change',()=>{rebuild();if(id==='width')resetView();}));
@@ -1694,6 +1701,7 @@ $('showRatio').addEventListener('change',()=>{
   if($('showRatio').checked)ratioLoad();
   else{ratioStop();S.ratio=null;S.ratioAlert='';refreshAlert();schedule();}
 });
+$('rAutoLb').addEventListener('change',()=>{$('rLbDays').disabled=$('rAutoLb').checked;});
 ['rMode','rL1','rL2','rL3','rL4','rShowPct','rLowPct','rHighPct','rDrawBars','rMAPeriod','rShowMA','rAutoLb','rLbDays','rAlerts'].forEach(id=>
   $(id).addEventListener('change',()=>{if(id==='rAutoLb'||id==='rLbDays')ratioLoad();else ratioRecalc();}));
 
@@ -1826,7 +1834,7 @@ cv.addEventListener('pointermove',e=>{
   if(ptrs.has(e.pointerId))ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pinch&&ptrs.size===2){
     const[a,b]=[...ptrs.values()],d=Math.hypot(a.x-b.x,a.y-b.y)||1;
-    const nb=clamp(pinch.barW*d/pinch.d,0.3,60),idx=pinch.start+pinch.cx/pinch.barW;
+    const nb=clamp(pinch.barW*d/pinch.d,0.15,60),idx=pinch.start+pinch.cx/pinch.barW;
     S.view.barW=nb;S.view.start=clampStart(idx-pinch.cx/nb);S.hover=null;schedule();return;
   }
   S.hover={x,y};
