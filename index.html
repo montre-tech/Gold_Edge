@@ -244,7 +244,7 @@ button.tbtn.on{background:var(--accent);color:#fff}
     <h3>Current levels</h3>
     <section class="info" id="info" aria-live="polite"></section>
 
-    <p class="note">Binance/Bybit prices come from exchange perpetual/spot feeds (USDT-quoted), so levels can differ slightly from MT4/MT5. Biquote instruments use an MT5 broker feed (closer to MT4/MT5), but their volume is tick volume (ticks per bar), the same as MT5 shows for forex/CFDs, and history is limited to roughly 2,000 bars per timeframe. The ratio pane always uses two Biquote symbols (default XAUUSD / XAGUSD) on the chart's timeframe, whatever instrument is on the chart, so its percentile window is limited by Biquote's history (about 2,000 bars). Times in UTC. Educational tool, not financial advice.</p>
+    <p class="note">Binance/Bybit prices come from exchange perpetual/spot feeds (USDT-quoted), so levels can differ slightly from MT4/MT5. Biquote instruments use an MT5 broker feed (closer to MT4/MT5), but their volume is tick volume (ticks per bar), the same as MT5 shows for forex/CFDs, and history is limited to roughly 2,000 bars per timeframe. The ratio pane always uses two Biquote symbols (default XAUUSD / XAGUSD) on the chart's timeframe, whatever instrument is on the chart, so its percentile window is limited by Biquote's history (about 2,000 bars). Times in UTC. Educational tool, not financial advice. <span style="opacity:.6">Build 2026-10-17 · history v3.</span></p>
   </section>
 </main>
 
@@ -1369,21 +1369,24 @@ async function fetchHistory(inst,tfKey,startMs){
     try{
       let out=[];
       if(inst.venue==='biquote'){
-        // Newest-first pages of up to 1000 bars; walk backwards with `to` until we pass startMs or run out of history.
-        let to=null,prevOldest=Infinity;
-        for(let p=0;p<40;p++){
+        // Page 0: the newest bars. Then explicit [from,to] windows going back in time, each as wide as the first page actually was,
+        // so it works whatever per-request cap the API applies and whether or not it honours `to` on its own.
+        const tfm=TF_MS[tfKey],iso=t=>encodeURIComponent(new Date(t).toISOString());
+        const url=x=>base+'/api/'+encodeURIComponent(inst.sym)+'/ohlc?interval='+tfKey+'&limit=1000'+x;
+        let hi=null,size=1000,known=Infinity,empties=0;
+        for(let p=0;p<24;p++){
           let j;
-          try{j=await getJSON(base+'/api/'+encodeURIComponent(inst.sym)+'/ohlc?interval='+tfKey+'&limit=1000'
-            +(to!==null?'&to='+encodeURIComponent(new Date(to).toISOString()):''));}
-          catch(e){if(p===0)throw e;break;}          // older page failed: keep the newer bars we have
-          const list=(j&&j.bars)||[];
-          if(!list.length)break;
-          let oldest=Infinity;
-          for(const k of list){const b=biquoteRowToBar(k);if(Number.isFinite(b.t)){out.push(b);if(b.t<oldest)oldest=b.t;}}
-          if(!Number.isFinite(oldest)||oldest>=prevOldest||out.length>=5000)break;   // no progress, or safety cap
-          prevOldest=oldest;
-          if(oldest<=startMs)break;
-          to=oldest-1;
+          try{j=await getJSON(url(hi===null?'':'&from='+iso(hi-size*tfm)+'&to='+iso(hi)));}
+          catch(e){if(p===0)throw e;break;}                  // an older window failed: keep what we already have
+          const list=(j&&j.bars)||[];let n=0,oldest=Infinity;
+          for(const k of list){const b=biquoteRowToBar(k);if(Number.isFinite(b.t)){out.push(b);n++;if(b.t<oldest)oldest=b.t;}}
+          if(p===0){if(!n)break;size=clamp(n,50,1000);}
+          if(n===0){if(++empties>=4)break;hi-=size*tfm;continue;}   // empty window: maybe a market closure, step further back
+          empties=0;
+          if(oldest>=known)break;                            // the API ignored the window and repeated itself: stop
+          known=oldest;
+          if(oldest<=startMs||out.length>=5000)break;
+          hi=oldest-1;
         }
       }else if(inst.venue==='bybit'){
         let end=Date.now()+60000;
@@ -1439,8 +1442,8 @@ function neededStart(tfMs,o){
   const now=Date.now(),cur=anchorStartOf(now,o.anchor,o.offH),n=o.count||1;
   const steps=n>1?n+(o.anchor==='1d'?Math.ceil(n/5)*2:0):1;  // several daily periods: leave room for weekends (1 period: unchanged)
   let prev=cur;for(let i=0;i<steps;i++)prev=anchorStartOf(prev-1,o.anchor,o.offH);
-  const want=Math.min(prev,now-300*tfMs)-tfMs*2,maxBars=15000;
-  return{start:Math.max(want,now-maxBars*tfMs),capped:(now-want)/tfMs>maxBars};
+  const want=Math.min(prev,now-2000*tfMs)-tfMs*2,maxBars=15000;
+  return{start:Math.max(want,now-maxBars*tfMs),capped:(now-want)/tfMs>maxBars,anchorStart:prev};   // anchorStart: how far back the periods need data
 }
 
 async function load(keepView){
@@ -1458,10 +1461,11 @@ async function load(keepView){
       bars=await fetchHistory(inst,tfKey,inst.venue==='biquote'?0:need.start);   // Biquote: take everything it has (up to ~2000 bars)
       title=inst.name+' · '+inst.sym+' · '+tfKey+' · '+VENUES[inst.venue].name;
     }
+    if(bars.length)title+=' · '+bars.length.toLocaleString('en-US')+' bars';
     if(id!==S.loadId)return;
     S.bars=bars;S.tfMs=tfMs;S.title=title;S.name=inst.name;S.sym=inst.sym;S.lastPx=null;
-    setStatus(need.capped?'Loaded the most recent 15,000 bars (the anchor candle may be only partly covered; use a larger chart timeframe).':'');
-    if(inst.venue==='biquote'&&bars.length&&bars[0].t>need.start+tfMs*2)
+    setStatus(need.capped?'Loaded the most recent 15,000 bars (the anchor candle may be only partly covered; use a larger chart timeframe).':(bars.length?'Loaded '+bars.length.toLocaleString('en-US')+' bars: '+fmtFull(bars[0].t)+' → '+fmtFull(bars[bars.length-1].t)+' UTC.':''));
+    if(inst.venue==='biquote'&&bars.length&&bars[0].t>need.anchorStart+tfMs*2)
       setStatus('Biquote returned '+bars.length.toLocaleString('en-US')+' bars ('+fmtFull(bars[0].t)+' → '+fmtFull(bars[bars.length-1].t)+' UTC); its history does not reach back far enough for this anchor. Try a larger chart timeframe.');
     rebuild();if(!keepView)resetView();
     if(inst.venue)startFeed(inst,tfKey);
